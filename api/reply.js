@@ -15,22 +15,24 @@ export default async function handler(req, res) {
   await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'user', content }));
 
   // (선택) AI 이어답변
-  let answer = null;
-  if (process.env.OPENAI_API_KEY) {
+ if (process.env.OPENAI_API_KEY) {
     const list = await kv.lrange(`post:${id}:msgs`, 0, -1);
     const history = (list || []).map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: String(s) }; } }).reverse();
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const out = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5',
       messages: [{ role: 'system', content: '역할: 수출 애로해소 전문가. 위 맥락대로 간결하게 답변.' }, ...history],
       temperature: 0.3,
       max_tokens: 800
     });
-    answer = out?.choices?.[0]?.message?.content?.trim();
+
+    // ✅ content 정규화
+    const raw = out?.choices?.[0]?.message?.content;
+    const answer = Array.isArray(raw)
+      ? raw.map(p => (typeof p === 'string' ? p : (p?.text ?? ''))).join('')
+      : (typeof raw === 'string' ? raw : (raw?.text ?? ''));
+
     if (answer) {
       await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: answer }));
     }
   }
-
-  return res.status(200).json({ ok: true, answer });
-}
