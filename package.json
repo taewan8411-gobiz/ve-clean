@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "api/index.js",
   "dependencies": {
-    "express": "^4.19.2",
     "@vercel/kv": "^1.0.0",
     "openai": "^4.58.0"
   }
