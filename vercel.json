@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "cleanUrls": true, // 이 줄을 추가합니다.
+  "cleanUrls": true,
   "routes": [
     { "src": "^/api/(.*)$", "dest": "api/$1.js" }
   ]
