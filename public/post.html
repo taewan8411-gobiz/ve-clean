@@ -20,50 +20,40 @@
   const headEl = document.getElementById('head');
   const threadEl = document.getElementById('thread');
 
+  // ✅ content를 항상 문자열로 변환
+  function asText(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content.map(p => (typeof p === 'string' ? p : (p?.text ?? ''))).join('');
+    }
+    if (content && typeof content === 'object') {
+      return content.text ?? content.content ?? JSON.stringify(content);
+    }
+    return '';
+  }
+
   async function load() {
-    // ✅ id가 없으면 즉시 안내
-    if (!id) {
-      headEl.textContent = '잘못된 접근입니다. (id 없음)';
-      threadEl.textContent = '';
-      return;
-    }
+    if (!id) { headEl.textContent = '잘못된 접근입니다. (id 없음)'; threadEl.textContent=''; return; }
 
-    try {
-      const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-      const data = await res.json();
-      if (!res.ok) {
-        headEl.textContent = '글을 불러오지 못했습니다. (' + (data?.error || res.status) + ')';
-        threadEl.textContent = '';
-        return;
-      }
+    const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!res.ok) { headEl.textContent = '글을 불러오지 못했습니다.'; threadEl.textContent=''; return; }
 
-      headEl.innerHTML =
-        '<b>[' + (data.category||'') + '] ' + (data.title||'') + '</b><br/>' + (data.content||'');
-
-      const msgs = Array.isArray(data.messages) ? data.messages : [];
-      if (msgs.length === 0) {
-        threadEl.textContent = '(대화 없음)';
-        return;
-      }
-      threadEl.textContent = msgs.map(m =>
-        (m.role === 'user' ? '[질문] ' : '[AI] ') + (m.content || '')
-      ).join('\n\n');
-    } catch (e) {
-      headEl.textContent = '오류: ' + e.message;
-      threadEl.textContent = '';
-    }
+    headEl.innerHTML = '<b>['+(data.category||'')+'] '+(data.title||'')+'</b><br/>'+(data.content||'');
+    const msgs = Array.isArray(data.messages) ? data.messages : [];
+    threadEl.textContent = msgs.length
+      ? msgs.map(m => (m.role === 'user' ? '[질문] ' : '[AI] ') + asText(m.content)).join('\n\n')
+      : '(대화 없음)';
   }
 
   async function sendFollow() {
-    if (!id) return;
     const text = document.getElementById('follow').value.trim();
     if (!text) return;
-
     document.getElementById('send').disabled = true;
     try {
-      const res = await fetch('/api/reply?id=' + encodeURIComponent(id), {
+      await fetch('/api/reply?id=' + encodeURIComponent(id), {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text })
       });
       document.getElementById('follow').value = '';
