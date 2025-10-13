@@ -6,7 +6,7 @@
   "main": "api/index.js",
   "dependencies": {
     "express": "^4.19.2",
-    "openai": "^4.58.0",
-    "@vercel/kv": "^1.0.0"
+    "@vercel/kv": "^1.0.0",
+    "openai": "^4.58.0"
   }
 }
