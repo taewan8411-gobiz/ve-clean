@@ -13,37 +13,40 @@
 
   <p><a href="/index.html">← 홈</a></p>
 
-  <script>
-    const params = new URLSearchParams(location.search);
-    const id = params.get('id');
+ <script>
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
 
-    async function load() {
-      const res = await fetch('/api/posts/' + id);
-      const data = await res.json();
-      if (!res.ok) { document.getElementById('thread').textContent='존재하지 않는 글입니다.'; return; }
-      document.getElementById('head').innerHTML =
-        '<b>['+data.category+'] '+data.title+'</b><br/>'+data.content;
+  async function load() {
+    const res = await fetch('/api/get-post?id=' + id);
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('thread').textContent='존재하지 않는 글입니다.'; return; }
 
-      const lines = (data.messages || []).map(m => (m.role==='user'?'[질문] ':'[AI] ') + m.content).join('\n\n');
-      document.getElementById('thread').textContent = lines || '(대화 없음)';
-    }
+    document.getElementById('head').innerHTML =
+      '<b>['+data.category+'] '+data.title+'</b><br/>'+data.content;
 
-    async function sendFollow() {
-      const text = document.getElementById('follow').value.trim();
-      if (!text) return;
-      document.getElementById('send').disabled = true;
-      const res = await fetch('/api/posts/' + id + '/reply', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ content: text })
-      });
-      document.getElementById('send').disabled = false;
-      document.getElementById('follow').value = '';
-      await load();
-    }
+    const lines = (data.messages || []).map(m => (m.role==='user'?'[질문] ':'[AI] ') + m.content).join('\n\n');
+    document.getElementById('thread').textContent = lines || '(대화 없음)';
+  }
 
-    document.getElementById('send').addEventListener('click', sendFollow);
-    load();
-  </script>
+  async function sendFollow() {
+    const text = document.getElementById('follow').value.trim();
+    if (!text) return;
+    document.getElementById('send').disabled = true;
+    const res = await fetch('/api/reply?id=' + id, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: text })
+    });
+    document.getElementById('send').disabled = false;
+    document.getElementById('follow').value = '';
+    await load();
+  }
+
+  document.getElementById('send').addEventListener('click', sendFollow);
+  load();
+</script>
+
 </body>
 </html>
 <!-- redeploy -->
