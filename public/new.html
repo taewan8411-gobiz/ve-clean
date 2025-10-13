@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>새 문의</title>
+<style>
+  body{margin:0;background:#f4f6ff;font-family:system-ui}
+  .wrap{max-width:900px;margin:36px auto;padding:0 16px}
+  .panel{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}
+  label{display:block;margin:10px 0 6px;font-weight:700}
+  input,textarea,select{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  .btn{background:#5562eb;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
+  a{color:#5562eb;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>새 문의 작성</h1>
+  <p><a href="/">← 목록으로</a></p>
+  <div class="panel">
+    <form id="f">
+      <div class="row">
+        <div>
+          <label>분야</label>
+          <select id="category">
+            <option>글로벌셀링</option><option>수출신고</option><option>물류통관</option>
+            <option>세무회계</option><option>바이어발굴</option><option>규격인증</option><option selected>기타</option>
+          </select>
+        </div>
+        <div>
+          <label>제목</label>
+          <input id="title" placeholder="예: 미국 아마존 FBA 화장품 통관 절차" required>
+        </div>
+      </div>
+      <label>내용</label>
+      <textarea id="content" rows="10" placeholder="제품/국가/거래조건/상황을 구체적으로 적어주세요." required></textarea>
+      <div style="margin-top:12px"><button class="btn" type="submit">등록</button></div>
+    </form>
+  </div>
+</div>
+<script>
+  document.getElementById('f').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const body = {
+      category: document.getElementById('category').value,
+      title: document.getElementById('title').value.trim(),
+      content: document.getElementById('content').value.trim()
+    };
+    if(!body.title || !body.content){ alert('제목/내용을 입력하세요'); return; }
+    const res = await fetch('/api/posts',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const data = await res.json();
+    if(!res.ok){ alert('등록 실패: ' + (data.message || data.error || '')); return; }
+    location.href = `/post?id=${data.id}`;
+  });
+</script>
+</body>
+</html>

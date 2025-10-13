@@ -1,8 +1,49 @@
 <!doctype html>
-<html lang="ko"><meta charset="utf-8">
-<title>Minimal Clean</title>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>상담 게시판</title>
+<style>
+  body{font-family:system-ui,apple-system,Segoe UI,Roboto;background:#f4f6ff;margin:0}
+  .wrap{max-width:1000px;margin:40px auto;padding:0 16px}
+  h1{margin:0 0 12px;text-align:center}
+  .toolbar{display:flex;justify-content:flex-end;margin:10px 0}
+  .btn{background:#5562eb;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;text-decoration:none}
+  .item{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px}
+  .meta{color:#6b7280;font-size:12px}
+  .empty{color:#6b7280;text-align:center;margin:40px 0}
+</style>
+</head>
 <body>
-  <h1>Vercel Minimal Clean Project</h1>
-  <p>API 확인: <a href="/api">/api</a></p>
+<div class="wrap">
+  <h1>온라인수출 애로해소 — 상담 게시판</h1>
+  <div class="toolbar"><a class="btn" href="/new">➕ 문의하기</a></div>
+  <div id="list" class="list"></div>
+</div>
+
+<script>
+  async function load(){
+    const box = document.getElementById('list');
+    box.innerHTML = '<div class="empty">불러오는 중…</div>';
+    try{
+      const res = await fetch('/api/posts');
+      const data = await res.json();
+      const items = data.items || data.posts || []; // API 형태 어느 쪽이든 대응
+      if(!items.length){
+        box.innerHTML = '<div class="empty">아직 상담이 없습니다. “문의하기”를 눌러 시작하세요.</div>';
+        return;
+      }
+      box.innerHTML = items.map(it=>{
+        const d = new Date(+it.createdAt || Date.now()).toLocaleString('ko-KR');
+        return `<div class="item">
+          <div><a href="/post?id=${it.id}">[${it.category}] ${it.title}</a></div>
+          <div class="meta">${d} • ID:${it.id}</div>
+        </div>`;
+      }).join('');
+    }catch(e){ box.innerHTML = '<div class="empty">목록 로드 실패</div>'; }
+  }
+  load();
+</script>
 </body>
 </html>
