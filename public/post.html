@@ -1,10 +1,48 @@
 <!doctype html>
-<html lang="ko"><meta charset="utf-8">
-<title>상세</title>
-<link rel="stylesheet" href="/public/style.css">
+<html lang="ko"><meta charset="utf-8" />
+<title>문의 상세</title>
+<link rel="stylesheet" href="/public/style.css" />
 <body>
-  <h2>상세 페이지</h2>
-  <p>이 파일이 보이면 정적 경로가 정상입니다.</p>
-  <p><a href="/">← 홈</a></p>
+  <h1>문의 상세</h1>
+  <div id="head"></div>
+  <div id="thread" style="white-space:pre-wrap;border:1px solid #ddd;padding:12px;border-radius:8px;background:#fff"></div>
+
+  <h3>이어 질문하기</h3>
+  <textarea id="follow" rows="5" placeholder="추가 질문을 입력하세요"></textarea>
+  <button id="send">질문 보내기</button>
+
+  <p><a href="/index.html">← 홈</a></p>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+
+    async function load() {
+      const res = await fetch('/api/posts/' + id);
+      const data = await res.json();
+      if (!res.ok) { document.getElementById('thread').textContent='존재하지 않는 글입니다.'; return; }
+      document.getElementById('head').innerHTML =
+        '<b>['+data.category+'] '+data.title+'</b><br/>'+data.content;
+
+      const lines = (data.messages || []).map(m => (m.role==='user'?'[질문] ':'[AI] ') + m.content).join('\n\n');
+      document.getElementById('thread').textContent = lines || '(대화 없음)';
+    }
+
+    async function sendFollow() {
+      const text = document.getElementById('follow').value.trim();
+      if (!text) return;
+      document.getElementById('send').disabled = true;
+      const res = await fetch('/api/posts/' + id + '/reply', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ content: text })
+      });
+      document.getElementById('send').disabled = false;
+      document.getElementById('follow').value = '';
+      await load();
+    }
+
+    document.getElementById('send').addEventListener('click', sendFollow);
+    load();
+  </script>
 </body>
 </html>
