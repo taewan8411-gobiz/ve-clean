@@ -1,80 +1,10 @@
 <!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>상담 상세</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<style>
-  body{margin:0;background:#f4f6ff;font-family:system-ui}
-  .wrap{max-width:900px;margin:36px auto;padding:0 16px}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}
-  .meta{color:#6b7280;font-size:12px;margin-bottom:8px}
-  .bubble{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:8px 0;background:#fff}
-  .assistant{background:#f9fafb}
-  textarea{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px}
-  .btn{background:#5562eb;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
-  a{color:#5562eb;text-decoration:none}
-</style>
-</head>
+<html lang="ko"><meta charset="utf-8">
+<title>상세</title>
+<link rel="stylesheet" href="/public/style.css">
 <body>
-<div class="wrap">
-  <p><a href="/">← 목록으로</a></p>
-  <div id="view" class="card">불러오는 중…</div>
-
-  <div class="card" style="margin-top:14px">
-    <h3>이어 질문하기</h3>
-    <form id="replyForm">
-      <textarea id="reply" rows="6" placeholder="추가로 궁금한 점을 적어주세요."></textarea>
-      <div style="margin-top:8px"><button class="btn" type="submit">질문 보내기</button> <span id="st"></span></div>
-    </form>
-  </div>
-</div>
-
-<script>
-  const id = new URLSearchParams(location.search).get('id');
-  async function load(){
-    const res = await fetch(`/api/posts/${id}`);
-    if(!res.ok){ document.getElementById('view').innerHTML = '존재하지 않는 글입니다.'; return; }
-    const data = await res.json();
-    const dt = new Date(+data.createdAt || Date.now()).toLocaleString('ko-KR');
-
-    const thread = (data.messages||[]).map(m=>{
-      if(m.role === 'assistant'){
-        return `<div class="bubble assistant">${marked.parse(m.content||'')}</div>`;
-      } else {
-        return `<div class="bubble"><b>사용자</b><br>${(m.content||'').replace(/\n/g,'<br>')}</div>`;
-      }
-    }).join('');
-
-    document.getElementById('view').innerHTML = `
-      <h2>[${data.category}] ${data.title}</h2>
-      <div class="meta">${dt} • ID:${data.id}</div>
-      <div class="bubble"><b>문의 내용</b><br>${(data.content||'').replace(/\n/g,'<br>')}</div>
-      <h3>대화</h3>
-      ${thread || '<div class="meta">아직 대화가 없습니다. 아래에서 질문을 시작하세요.</div>'}
-    `;
-  }
-
-  document.getElementById('replyForm').addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const st = document.getElementById('st');
-    const content = document.getElementById('reply').value.trim();
-    if(!content) return;
-    st.textContent = '응답 생성 중…';
-    const res = await fetch(`/api/posts/${id}/reply`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ content })
-    });
-    const data = await res.json();
-    if(!res.ok){ alert('오류: ' + (data.detail||data.error||'')); st.textContent=''; return; }
-    document.getElementById('reply').value = '';
-    st.textContent = '완료';
-    await load();
-    st.textContent = '';
-  });
-
-  load();
-</script>
+  <h2>상세 페이지</h2>
+  <p>이 파일이 보이면 정적 경로가 정상입니다.</p>
+  <p><a href="/">← 홈</a></p>
 </body>
 </html>
