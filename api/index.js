@@ -106,9 +106,9 @@ app.post("/api/posts/:id/reply", async (req, res) => {
     const system = "역할: 수출 애로해소 전문가. 위 대화 맥락을 이어서, 간결하고 단계별로 답변.";
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const out = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [{ role: "system", content: system }, ...historyAsc],
-      temperature: 0.3,
+      temperature: 0.7,
       max_tokens: 900
     });
     const answer = out?.choices?.[0]?.message?.content?.trim() || "_응답 없음_";
