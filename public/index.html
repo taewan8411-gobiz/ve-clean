@@ -54,7 +54,7 @@ async function fetchList(){
   total = data.total||0;
   listEl.innerHTML = '<tr><th style="width:80px">ID</th><th>제목</th><th style="width:140px">분야</th><th style="width:120px">답변</th><th style="width:180px">작성일</th><th style="width:120px">보기</th></tr>' +
     (data.items||[]).map(p=>{
-      const d = new Date(p.createdAt||Date.now());
+      const d = new Date(Number(p.createdAt) || Date.now())
       return `<tr>
         <td>${p.id}</td>
         <td>${escapeHtml(p.title||'')}</td>
