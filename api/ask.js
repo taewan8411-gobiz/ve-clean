@@ -8,11 +8,14 @@ export default async function handler(req, res) {
     const { category = '기타', title = '', content = '' } = req.body || {};
     if (!title || !content) return res.status(400).json({ error: 'bad_request', message: '제목/내용 필수' });
 
-    // 글 저장
     const id = await kv.incr('post:id');
     const post = { id: String(id), category, title, content, createdAt: Date.now() };
     await kv.hset(`post:${id}`, post);
     await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'user', content }));
+
+    // 목록 인덱스(최신순) 유지
+    await kv.lpush('posts', String(id));
+    await kv.ltrim('posts', 0, 999);
 
     // OpenAI 첫 답변 (키 없으면 생략)
     if (process.env.OPENAI_API_KEY) {
@@ -23,10 +26,10 @@ export default async function handler(req, res) {
           { role: 'system', content: '너는 수출 애로해소 전문가야. 간결하고 단계별로 답변해.' },
           { role: 'user', content }
         ],
-        temperature: 0.3
+        temperature: 0.3,
+        max_tokens: 800
       });
 
-      // content → 문자열 정규화
       const msg = completion.choices?.[0]?.message?.content;
       const text = typeof msg === 'string'
         ? msg
