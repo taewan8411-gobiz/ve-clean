@@ -1,49 +1,128 @@
 <!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>상담 게시판</title>
-<style>
-  body{font-family:system-ui,apple-system,Segoe UI,Roboto;background:#f4f6ff;margin:0}
-  .wrap{max-width:1000px;margin:40px auto;padding:0 16px}
-  h1{margin:0 0 12px;text-align:center}
-  .toolbar{display:flex;justify-content:flex-end;margin:10px 0}
-  .btn{background:#5562eb;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;text-decoration:none}
-  .item{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px}
-  .meta{color:#6b7280;font-size:12px}
-  .empty{color:#6b7280;text-align:center;margin:40px 0}
-</style>
-</head>
+<html lang="ko"><meta charset="utf-8" />
+<title>온라인수출 애로해소 게시판</title>
+<link rel="stylesheet" href="/style.css" />
 <body>
-<div class="wrap">
-  <h1>온라인수출 애로해소 — 상담 게시판</h1>
-  <div class="toolbar"><a class="btn" href="/new">➕ 문의하기</a></div>
-  <div id="list" class="list"></div>
-</div>
+  <header>
+    <div class="container row">
+      <h2>온라인수출 애로해소 게시판</h2>
+      <a class="right" href="/public/new.html"><button class="primary">+ 새 문의</button></a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card row">
+      <input id="q" type="search" placeholder="검색: 제목 / 내용 / 분야" />
+      <button id="searchBtn" class="primary">검색</button>
+      <span class="right muted">관리 기능은 ADMIN_TOKEN이 필요합니다.</span>
+    </div>
+
+    <div id="listWrap" class="card">
+      <div id="loading" class="center" style="display:none"><div class="spinner"></div></div>
+      <table class="list" id="list"></table>
+    </div>
+
+    <div class="card">
+      <h3>관리자 도구</h3>
+      <div class="row">
+        <input id="token" placeholder="ADMIN_TOKEN 입력" />
+        <input id="editId" placeholder="수정/삭제할 글 ID" style="max-width:180px" />
+        <button id="loadBtn">불러오기</button>
+        <button id="delBtn" class="danger">삭제</button>
+      </div>
+      <div id="editWrap" style="margin-top:12px; display:none">
+        <label>분야</label>
+        <input id="editCategory" />
+        <label>제목</label>
+        <input id="editTitle" />
+        <label>내용</label>
+        <textarea id="editContent" rows="8"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button id="saveBtn" class="primary">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <script>
-  async function load(){
-    const box = document.getElementById('list');
-    box.innerHTML = '<div class="empty">불러오는 중…</div>';
-    try{
-      const res = await fetch('/api/posts');
-      const data = await res.json();
-      const items = data.items || data.posts || []; // API 형태 어느 쪽이든 대응
-      if(!items.length){
-        box.innerHTML = '<div class="empty">아직 상담이 없습니다. “문의하기”를 눌러 시작하세요.</div>';
-        return;
-      }
-      box.innerHTML = items.map(it=>{
-        const d = new Date(+it.createdAt || Date.now()).toLocaleString('ko-KR');
-        return `<div class="item">
-          <div><a href="/post?id=${it.id}">[${it.category}] ${it.title}</a></div>
-          <div class="meta">${d} • ID:${it.id}</div>
-        </div>`;
-      }).join('');
-    }catch(e){ box.innerHTML = '<div class="empty">목록 로드 실패</div>'; }
-  }
-  load();
+const listEl = document.getElementById('list');
+const loadingEl = document.getElementById('loading');
+const qEl = document.getElementById('q');
+
+async function fetchList() {
+  loadingEl.style.display = 'flex';
+  listEl.innerHTML = '';
+  const q = qEl.value.trim();
+  const res = await fetch('/api/list' + (q ? ('?q=' + encodeURIComponent(q)) : ''));
+  const data = await res.json();
+  loadingEl.style.display = 'none';
+
+  listEl.innerHTML = '<tr><th style="width:80px">ID</th><th>제목</th><th style="width:140px">분야</th><th style="width:180px">작성일</th><th style="width:120px">보기</th></tr>' +
+    (data.items||[]).map(p => {
+      const d = new Date(p.createdAt||Date.now());
+      return `<tr>
+        <td>${p.id}</td>
+        <td>${escapeHtml(p.title||'')}</td>
+        <td><span class="badge">${escapeHtml(p.category||'')}</span></td>
+        <td class="muted">${d.toLocaleString()}</td>
+        <td><a href="/public/post.html?id=${p.id}"><button>열기</button></a></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" class="muted">결과 없음</td></tr>';
+}
+
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+
+document.getElementById('searchBtn').addEventListener('click', fetchList);
+qEl.addEventListener('keydown', e=>{ if(e.key==='Enter') fetchList(); });
+
+/* 관리자 도구 */
+const tokenEl = document.getElementById('token');
+const editIdEl = document.getElementById('editId');
+const editWrap = document.getElementById('editWrap');
+const editCategoryEl = document.getElementById('editCategory');
+const editTitleEl = document.getElementById('editTitle');
+const editContentEl = document.getElementById('editContent');
+
+document.getElementById('loadBtn').addEventListener('click', async ()=>{
+  const id = editIdEl.value.trim(); if(!id) return alert('ID 입력');
+  const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
+  const data = await res.json();
+  if(!res.ok) return alert('불러오기 실패');
+  editCategoryEl.value = data.category || '';
+  editTitleEl.value = data.title || '';
+  editContentEl.value = data.content || '';
+  editWrap.style.display = 'block';
+});
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  const id = editIdEl.value.trim(); if(!id) return;
+  const token = tokenEl.value.trim(); if(!token) return alert('ADMIN_TOKEN 입력');
+  const payload = {
+    id, category: editCategoryEl.value, title: editTitleEl.value, content: editContentEl.value
+  };
+  const res = await fetch('/api/update', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-admin-token': token },
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) return alert('저장 실패');
+  alert('저장했습니다'); fetchList();
+});
+
+document.getElementById('delBtn').addEventListener('click', async ()=>{
+  const id = editIdEl.value.trim(); if(!id) return;
+  const token = tokenEl.value.trim(); if(!token) return alert('ADMIN_TOKEN 입력');
+  const ok = confirm('정말 삭제하시겠습니까?'); if(!ok) return;
+  const res = await fetch('/api/delete', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-admin-token': token },
+    body: JSON.stringify({ id })
+  });
+  if(!res.ok) return alert('삭제 실패');
+  alert('삭제했습니다'); editWrap.style.display='none'; fetchList();
+});
+
+fetchList();
 </script>
 </body>
 </html>
