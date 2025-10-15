@@ -3,12 +3,38 @@
 <title>새 문의 작성</title>
 <link rel="stylesheet" href="/style.css" />
 <body>
-  <header>
-    <div class="container row">
-      <h2>새 문의 작성</h2>
-      <a class="right" href="/index.html"><button>홈</button></a>
-    </div>
-  </header>
+ <header>
+  <div class="container row">
+    <h2>온라인수출 애로해소 게시판</h2>
+
+    <nav class="nav right">
+      <a href="/index.html" data-nav="home">홈</a>
+      <a href="/public/new.html" data-nav="new">질문하기</a>
+      <a href="/index.html" data-nav="answers">답변보기</a>
+    </nav>
+  </div>
+</header>
+
+<script>
+  // 현재 페이지에 맞게 메뉴 하이라이트
+  (function () {
+    const path = location.pathname;
+    // 페이지 → nav 키 매핑
+    const map = {
+      '/': 'home',
+      '/index.html': 'home',
+      '/public/new.html': 'new',
+      '/public/post.html': 'answers'  // 개별 글 페이지는 '답변보기' 활성화
+    };
+    // /public/post.html?id=.. 처럼 쿼리가 붙어도 인식되도록 처리
+    const key = map[path] || (path.startsWith('/public/post.html') ? 'answers' : null);
+    if (key) {
+      const el = document.querySelector(`.nav a[data-nav="${key}"]`);
+      if (el) el.classList.add('active');
+    }
+  })();
+</script>
+
 
   <div class="container">
     <div class="card">
