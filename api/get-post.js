@@ -10,19 +10,30 @@ function toText(c){
 export default async function handler(req, res) {
   try {
     const id = req.query.id;
-    if (!id) return res.status(400).json({ error: 'bad_request' });
+    if (!id) return res.status(400).json({ error: 'bad_request', message: 'id required' });
 
     const post = await kv.hgetall(`post:${id}`);
     if (!post) return res.status(404).json({ error: 'not_found' });
 
-    const raw = await kv.lrange(`post:${id}:msgs`, 0, -1); // 최신 → 과거
-    const messages = (raw || [])
-      .map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } })
-      .reverse()                   // 과거 → 최신 순서로 보여주기
-      .map(m => ({ ...m, content: toText(m.content) }));
+    // 값 정규화 (문자열 → 숫자/문자)
+    const normalized = {
+      id: String(post.id ?? id),
+      category: post.category ?? '',
+      title: post.title ?? '',
+      content: post.content ?? '',
+      createdAt: Number(post.createdAt) || Date.now()
+    };
 
-    res.json({ ...post, messages });
+    // 메시지: 최신(왼쪽에 push)로 저장 → 화면은 과거→최신 순으로 보여줌
+    const raw = await kv.lrange(`post:${id}:msgs`, 0, -1); // 최신 → 과거
+    const msgs = (raw || [])
+      .map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } })
+      .reverse() // 과거 → 최신
+      .map(m => ({ role: m.role || 'assistant', content: toText(m.content) }));
+
+    res.json({ ...normalized, messages: msgs });
   } catch (e) {
+    console.error('get-post.js error:', e);
     res.status(500).json({ error: 'server_error', detail: String(e) });
   }
 }
