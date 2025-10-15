@@ -25,7 +25,8 @@ export default async function handler(req, res) {
           { role: 'system', content: '너는 수출 애로해소 전문가야. 이전 맥락을 유지해서 간결하게 답변해.' },
           ...history
         ],
-        temperature: 0.3
+        temperature: 0.3,
+        max_tokens: 800
       });
 
       const msg = completion.choices?.[0]?.message?.content;
