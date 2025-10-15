@@ -32,75 +32,95 @@
 </div>
 
 <script>
-const params = new URLSearchParams(location.search);
-const id = params.get('id');
-const headEl = document.getElementById('head');
-const threadEl = document.getElementById('thread');
-const loadingEl = document.getElementById('loading');
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
 
-function esc(s){return (s??'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
-function asText(c){
-  if (typeof c === 'string') return c;
-  if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
-  if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
-  return String(c ?? '');
-}
-function bold(s){ return s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
-function richHTML(raw){
-  const src = (raw||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-  const lines = src.split('\n');
-  let html='', inUL=false, inOL=false;
-  const flush=()=>{ if(inUL){html+='</ul>'; inUL=false;} if(inOL){html+='</ol>'; inOL=false;} };
-  for (let t of lines.map(l=>l.trim())){
-    if(!t){ flush(); continue; }
-    if(/^\d+\.\s+/.test(t)){ if(inUL){html+='</ul>'; inUL=false;} if(!inOL){html+='<ol>'; inOL=true;} html += `<li>${bold(esc(t.replace(/^\d+\.\s+/,'')))}</li>`; continue; }
-    if(/^[-*•]\s+/.test(t)){ if(inOL){html+='</ol>'; inOL=false;} if(!inUL){html+='<ul>'; inUL=true;} html += `<li>${bold(esc(t.replace(/^[-*•]\s+/,'')))}</li>`; continue; }
-    flush(); html += `<p>${bold(esc(t))}</p>`;
+  const headEl = document.getElementById('head');
+  const threadEl = document.getElementById('thread');
+  const loadingEl = document.getElementById('loading');
+
+  function esc(s){return (s??'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+  function asText(c){
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
+    if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
+    return String(c ?? '');
   }
-  flush(); return html || '<p>(내용 없음)</p>';
-}
-function bubble(role, html){
-  const div = document.createElement('div');
-  div.className = 'bubble' + (role==='user' ? ' user' : '');
-  div.innerHTML = (role==='user' ? '<b>[질문]</b> ' : '<b>[AI]</b> ') + html;
-  return div;
-}
-
-let lastAssistantCount = 0;
-let postTitle = '';
-
-async function load(){
-  if(!id){ headEl.textContent='잘못된 접근입니다.(id 없음)'; return; }
-  const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-  const data = await res.json();
-  if(!res.ok){ headEl.textContent='불러오기 실패: ' + (data?.error || res.status); return; }
-
-  postTitle = data.title || '';
-  headEl.innerHTML = `<b>[${esc(data.category||'')}] ${esc(data.title||'')}</b><br>${esc(data.content||'')}`;
-
-  const msgs = Array.isArray(data.messages) ? data.messages : [];
-  threadEl.innerHTML = '';
-  lastAssistantCount = msgs.filter(m=>m.role==='assistant').length;
-
-  msgs.forEach(m=>{
-    let text = asText(m.content);
-    // 첫줄이 제목과 거의 동일하면 제거(반복 방지)
-    if (m.role==='assistant' && postTitle && text.split('\n')[0]?.trim().replace(/\s+/g,'') === postTitle.trim().replace(/\s+/g,'')){
-      text = text.split('\n').slice(1).join('\n');
+  function bold(s){ return s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
+  function richHTML(raw){
+    const src = (raw||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    const lines = src.split('\n');
+    let html='', inUL=false, inOL=false;
+    const flush=()=>{ if(inUL){html+='</ul>'; inUL=false;} if(inOL){html+='</ol>'; inOL=false;} };
+    for (let t of lines.map(l=>l.trim())){
+      if(!t){ flush(); continue; }
+      if(/^\d+\.\s+/.test(t)){ if(inUL){html+='</ul>'; inUL=false;} if(!inOL){html+='<ol>'; inOL=true;} html += `<li>${bold(esc(t.replace(/^\d+\.\s+/,'')))}</li>`; continue; }
+      if(/^[-*•]\s+/.test(t)){ if(inOL){html+='</ol>'; inOL=false;} if(!inUL){html+='<ul>'; inUL=true;} html += `<li>${bold(esc(t.replace(/^[-*•]\s+/,'')))}</li>`; continue; }
+      flush(); html += `<p>${bold(esc(t))}</p>`;
     }
-    threadEl.appendChild(bubble(m.role, richHTML(text)));
-  });
-}
+    flush(); return html || '<p>(내용 없음)</p>';
+  }
+  function bubble(role, html){
+    const div = document.createElement('div');
+    div.className = 'bubble' + (role==='user' ? ' user' : '');
+    div.innerHTML = (role==='user' ? '<b>[질문]</b> ' : '<b>[AI]</b> ') + html;
+    return div;
+  }
 
-<script>
-  // …(생략: esc/asText/bold/richHTML/bubble/load 동일 유지)…
+  let lastAssistantCount = 0;
+  let postTitle = '';
+
+  async function load(){
+    if(!id){ headEl.textContent='잘못된 접근입니다.(id 없음)'; return; }
+    loadingEl.style.display='flex';
+
+    try{
+      const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
+      const data = await res.json();
+
+      if(!res.ok){
+        headEl.innerHTML = `<span class="muted">불러오기 실패: ${esc(data?.error || res.status)}</span>`;
+        threadEl.innerHTML = '';
+        return;
+      }
+
+      const cat = data.category || '';
+      const title = data.title || '';
+      const content = data.content || '';
+
+      postTitle = title;
+
+      // 헤더
+      headEl.innerHTML = `<b>[${esc(cat)}] ${esc(title)}</b><br>${esc(content)}`;
+
+      // 메시지
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+      threadEl.innerHTML = '';
+      if (msgs.length === 0){
+        threadEl.innerHTML = '<div class="muted">아직 메시지가 없습니다.</div>';
+      } else {
+        lastAssistantCount = msgs.filter(m=>m.role==='assistant').length;
+        msgs.forEach(m=>{
+          let text = asText(m.content);
+          if (m.role==='assistant' && postTitle && text.split('\n')[0]?.trim().replace(/\s+/g,'') === postTitle.trim().replace(/\s+/g,'')){
+            text = text.split('\n').slice(1).join('\n');
+          }
+          threadEl.appendChild(bubble(m.role, richHTML(text)));
+        });
+      }
+    } catch (e) {
+      headEl.innerHTML = `<span class="muted">불러오기 오류: ${esc(String(e))}</span>`;
+      threadEl.innerHTML = '';
+    } finally {
+      loadingEl.style.display='none';
+    }
+  }
 
   async function sendFollow(){
     const ta = document.getElementById('follow');
     const text = ta.value.trim();
     if(!text) return;
 
-    // 버튼 잠그고 사용자 말풍선 + 대기 말풍선
     document.getElementById('send').disabled = true;
     const waiting = bubble('assistant', '<em>AI 답변 생성 중…</em>');
     threadEl.appendChild(bubble('user', richHTML(text)));
@@ -108,7 +128,6 @@ async function load(){
     threadEl.scrollTop = threadEl.scrollHeight;
 
     try{
-      // 서버에 전송 → AI 답변 텍스트를 즉시 돌려줌
       const res = await fetch('/api/reply?id=' + encodeURIComponent(id), {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
@@ -116,11 +135,10 @@ async function load(){
       });
       const data = await res.json();
 
-      // 대기 말풍선을 실제 답변으로 교체 (없으면 폴백으로 전체 리로드)
       if (res.ok && data && typeof data.assistant === 'string' && data.assistant.trim()){
         waiting.innerHTML = '<b>[AI]</b> ' + richHTML(data.assistant);
       } else {
-        await load();
+        await load(); // 폴백
       }
       ta.value='';
     } finally {
@@ -130,6 +148,7 @@ async function load(){
   }
 
   document.getElementById('send').addEventListener('click', sendFollow);
+  load();
 </script>
 
 </body>
