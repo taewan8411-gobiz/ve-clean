@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="ko"><meta charset="utf-8" />
 <title>문의 상세</title>
-<href="/style.css" href="/public/style.css" />
+<link rel="stylesheet" href="/style.css" />
 <body>
   <h1>문의 상세</h1>
-  <div id="head"></div>
-  <div id="thread" style="white-space:pre-wrap;border:1px solid #ddd;padding:12px;border-radius:8px;background:#fff"></div>
+  <div id="head" style="padding:8px;border:1px solid #ddd;border-radius:8px;background:#fafafa"></div>
+  <div id="thread" style="white-space:pre-wrap;border:1px solid #ddd;padding:12px;border-radius:8px;background:#fff;margin-top:12px"></div>
 
   <h3>이어 질문하기</h3>
   <textarea id="follow" rows="5" placeholder="추가 질문을 입력하세요"></textarea>
@@ -13,61 +13,53 @@
 
   <p><a href="/index.html">← 홈</a></p>
 
-<script>
-  const params = new URLSearchParams(location.search);
-  const id = params.get('id');
+  <script>
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
 
-  const headEl = document.getElementById('head');
-  const threadEl = document.getElementById('thread');
+    const headEl = document.getElementById('head');
+    const threadEl = document.getElementById('thread');
 
-  // ✅ content를 항상 문자열로 변환
-  function asText(content) {
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) {
-      return content.map(p => (typeof p === 'string' ? p : (p?.text ?? ''))).join('');
+    function asText(c) {
+      if (typeof c === 'string') return c;
+      if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
+      if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
+      return String(c ?? '');
     }
-    if (content && typeof content === 'object') {
-      return content.text ?? content.content ?? JSON.stringify(content);
+
+    async function load() {
+      if (!id) { headEl.textContent = '잘못된 접근입니다.(id 없음)'; threadEl.textContent=''; return; }
+      const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
+      const data = await res.json();
+      if (!res.ok) { headEl.textContent = '불러오기 실패: ' + (data?.error || res.status); threadEl.textContent=''; return; }
+
+      headEl.innerHTML = '<b>[' + (data.category||'') + '] ' + (data.title||'') + '</b><br/>' + (data.content||'');
+
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+      threadEl.textContent = msgs.length
+        ? msgs.map(m => (m.role === 'user' ? '[질문] ' : '[AI] ') + asText(m.content)).join('\n\n')
+        : '(대화 없음)';
     }
-    return '';
-  }
 
-  async function load() {
-    if (!id) { headEl.textContent = '잘못된 접근입니다. (id 없음)'; threadEl.textContent=''; return; }
-
-    const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-    const data = await res.json();
-    if (!res.ok) { headEl.textContent = '글을 불러오지 못했습니다.'; threadEl.textContent=''; return; }
-
-    headEl.innerHTML = '<b>['+(data.category||'')+'] '+(data.title||'')+'</b><br/>'+(data.content||'');
-    const msgs = Array.isArray(data.messages) ? data.messages : [];
-    threadEl.textContent = msgs.length
-      ? msgs.map(m => (m.role === 'user' ? '[질문] ' : '[AI] ') + asText(m.content)).join('\n\n')
-      : '(대화 없음)';
-  }
-
-  async function sendFollow() {
-    const text = document.getElementById('follow').value.trim();
-    if (!text) return;
-    document.getElementById('send').disabled = true;
-    try {
-      await fetch('/api/reply?id=' + encodeURIComponent(id), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text })
-      });
-      document.getElementById('follow').value = '';
-      await load();
-    } finally {
-      document.getElementById('send').disabled = false;
+    async function sendFollow() {
+      const text = document.getElementById('follow').value.trim();
+      if (!text) return;
+      document.getElementById('send').disabled = true;
+      try {
+        await fetch('/api/reply?id=' + encodeURIComponent(id), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text })
+        });
+        document.getElementById('follow').value = '';
+        await load();
+      } finally {
+        document.getElementById('send').disabled = false;
+      }
     }
-  }
 
-  document.getElementById('send').addEventListener('click', sendFollow);
-  load();
-</script>
-
-
+    document.getElementById('send').addEventListener('click', sendFollow);
+    load();
+  </script>
 </body>
 </html>
-<!-- redeploy -->
