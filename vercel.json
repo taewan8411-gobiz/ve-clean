@@ -1,7 +1,15 @@
 {
   "version": 2,
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "routes": [
     { "src": "^/api/(.*)$", "dest": "api/$1" },
-    { "src": "^/(.*)$",     "dest": "public/$1" }
+    { "src": "^/new$", "dest": "/new.html" },
+    { "src": "^/post$", "dest": "/post.html" },
+    { "src": "^/$", "dest": "/index.html" },
+    { "src": "^/(.*)$", "dest": "/$1" }
   ]
 }
