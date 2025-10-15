@@ -58,7 +58,7 @@ export default async function handler(req:any, res:any) {
             { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
             ...history
           ],
-          temperature: 0.7,
+          temperature: 0.5,
           max_tokens: 800, // 과도한 토큰은 지연 유발 → 적당히 제한
         }, { signal: controller.signal });
 
