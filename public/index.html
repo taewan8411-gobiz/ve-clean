@@ -23,8 +23,8 @@
     const map = {
       '/': 'home',
       '/index.html': 'home',
-      '/public/new.html': 'new',
-      '/public/post.html': 'answers'  // 개별 글 페이지는 '답변보기' 활성화
+      '/new.html': 'new',
+      '/post.html': 'answers'  // 개별 글 페이지는 '답변보기' 활성화
     };
     // /public/post.html?id=.. 처럼 쿼리가 붙어도 인식되도록 처리
     const key = map[path] || (path.startsWith('/public/post.html') ? 'answers' : null);
@@ -91,7 +91,7 @@ async function fetchList() {
         <td>${escapeHtml(p.title||'')}</td>
         <td><span class="badge">${escapeHtml(p.category||'')}</span></td>
         <td class="muted">${d.toLocaleString()}</td>
-        <td><a href="/public/post.html?id=${p.id}"><button>열기</button></a></td>
+        <td><a href="/post.html?id=${p.id}"><button>열기</button></a></td>
       </tr>`;
     }).join('') || '<tr><td colspan="5" class="muted">결과 없음</td></tr>';
 }
