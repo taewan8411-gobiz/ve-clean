@@ -1,6 +1,24 @@
 import { kv } from '@vercel/kv';
 import OpenAI from 'openai';
 
+const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
+
+function systemPrompt(category = '기타') {
+  return [
+    `당신은 한국의 중소기업을 돕는 "${category}" 분야 전문가입니다.`,
+    `이전 대화 맥락을 바탕으로, 실무자가 바로 실행할 수 있도록`,
+    `1) 단계, 2) 서류, 3) 기간/비용, 4) 체크리스트, 5) 주의사항`,
+    `형식으로 **최대한 상세히** 답변하세요. 모르면 추가 정보를 요청하세요.`
+  ].join(' ');
+}
+
+function toText(c) {
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
+  if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
+  return String(c ?? '');
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
@@ -19,31 +37,25 @@ export default async function handler(req, res) {
       const history = list.map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } }).reverse();
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const out = await openai.chat.completions.create({
+        model: MODEL,
         messages: [
-          { role: 'system', content: '너는 수출 애로해소 전문가야. 이전 맥락을 유지해서 간결하게 답변해.' },
+          { role: 'system', content: systemPrompt(post.category || '기타') },
           ...history
         ],
-        temperature: 0.3,
-        max_tokens: 800
+        temperature: 0.2,
+        max_tokens: 1000
       });
 
-      const msg = completion.choices?.[0]?.message?.content;
-      const text = typeof msg === 'string'
-        ? msg
-        : Array.isArray(msg)
-          ? msg.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('')
-          : (msg?.text ?? JSON.stringify(msg ?? ''));
-
+      const text = toText(out?.choices?.[0]?.message?.content);
       if (text.trim()) {
         await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: text }));
       }
     }
 
-    return res.status(200).json({ ok: true });
+    res.json({ ok: true });
   } catch (e) {
     console.error('reply.js error:', e);
-    return res.status(500).json({ error: 'server_error', detail: e.message });
+    res.status(500).json({ error: 'server_error', detail: String(e) });
   }
 }
