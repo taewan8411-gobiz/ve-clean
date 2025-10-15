@@ -6,147 +6,88 @@
 <header>
   <div class="container row">
     <h2>온라인수출 애로해소 게시판</h2>
-
     <nav class="nav right">
-      <a href="/index.html" data-nav="home">홈</a>
+      <a href="/index.html" data-nav="home" class="active">홈</a>
       <a href="/new.html" data-nav="new">질문하기</a>
       <a href="/index.html" data-nav="answers">답변보기</a>
     </nav>
   </div>
 </header>
 
-<script>
-  // 현재 페이지에 맞게 메뉴 하이라이트
-  (function () {
-    const path = location.pathname;
-    // 페이지 → nav 키 매핑
-    const map = {
-      '/': 'home',
-      '/index.html': 'home',
-      '/new.html': 'new',
-      '/post.html': 'answers'  // 개별 글 페이지는 '답변보기' 활성화
-    };
-    // /public/post.html?id=.. 처럼 쿼리가 붙어도 인식되도록 처리
-    const key = map[path] || (path.startsWith('/public/post.html') ? 'answers' : null);
-    if (key) {
-      const el = document.querySelector(`.nav a[data-nav="${key}"]`);
-      if (el) el.classList.add('active');
-    }
-  })();
-</script>
-
-
-  <div class="container">
-    <div class="card row">
-      <input id="q" type="search" placeholder="검색: 제목 / 내용 / 분야" />
-      <button id="searchBtn" class="primary">검색</button>
-      <span class="right muted">관리 기능은 ADMIN_TOKEN이 필요합니다.</span>
-    </div>
-
-    <div id="listWrap" class="card">
-      <div id="loading" class="center" style="display:none"><div class="spinner"></div></div>
-      <table class="list" id="list"></table>
-    </div>
-
-    <div class="card">
-      <h3>관리자 도구</h3>
-      <div class="row">
-        <input id="token" placeholder="ADMIN_TOKEN 입력" />
-        <input id="editId" placeholder="수정/삭제할 글 ID" style="max-width:180px" />
-        <button id="loadBtn">불러오기</button>
-        <button id="delBtn" class="danger">삭제</button>
-      </div>
-      <div id="editWrap" style="margin-top:12px; display:none">
-        <label>분야</label>
-        <input id="editCategory" />
-        <label>제목</label>
-        <input id="editTitle" />
-        <label>내용</label>
-        <textarea id="editContent" rows="8"></textarea>
-        <div class="row" style="margin-top:10px">
-          <button id="saveBtn" class="primary">저장</button>
-        </div>
-      </div>
-    </div>
+<div class="container">
+  <div class="card row">
+    <select id="cat">
+      <option value="">전체 분야</option>
+      <option>글로벌셀링</option><option>수출신고</option><option>물류통관</option>
+      <option>세무회계</option><option>바이어발굴</option><option>규격인증</option><option>기타</option>
+    </select>
+    <input id="q" type="search" placeholder="검색: 제목 / 내용 / 분야" />
+    <button id="searchBtn" class="primary">검색</button>
+    <a class="right" href="/new.html"><button class="primary">+ 새 문의</button></a>
   </div>
+
+  <div id="listWrap" class="card">
+    <div id="loading" class="center" style="display:none"><div class="spinner"></div></div>
+    <table class="list" id="list"></table>
+    <div class="row" id="pager" style="justify-content:flex-end"></div>
+  </div>
+</div>
 
 <script>
 const listEl = document.getElementById('list');
 const loadingEl = document.getElementById('loading');
 const qEl = document.getElementById('q');
+const catEl = document.getElementById('cat');
+const pagerEl = document.getElementById('pager');
+let page = 1, pageSize = 20, total = 0;
 
-async function fetchList() {
-  loadingEl.style.display = 'flex';
-  listEl.innerHTML = '';
-  const q = qEl.value.trim();
-  const res = await fetch('/api/list' + (q ? ('?q=' + encodeURIComponent(q)) : ''));
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+
+async function fetchList(){
+  loadingEl.style.display='flex';
+  listEl.innerHTML='';
+  const q = [qEl.value.trim(), catEl.value.trim()].filter(Boolean).join(' ');
+  const res = await fetch(`/api/list?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
   const data = await res.json();
-  loadingEl.style.display = 'none';
+  loadingEl.style.display='none';
 
-  listEl.innerHTML = '<tr><th style="width:80px">ID</th><th>제목</th><th style="width:140px">분야</th><th style="width:180px">작성일</th><th style="width:120px">보기</th></tr>' +
-    (data.items||[]).map(p => {
+  total = data.total||0;
+  listEl.innerHTML = '<tr><th style="width:80px">ID</th><th>제목</th><th style="width:140px">분야</th><th style="width:120px">답변</th><th style="width:180px">작성일</th><th style="width:120px">보기</th></tr>' +
+    (data.items||[]).map(p=>{
       const d = new Date(p.createdAt||Date.now());
       return `<tr>
         <td>${p.id}</td>
         <td>${escapeHtml(p.title||'')}</td>
         <td><span class="badge">${escapeHtml(p.category||'')}</span></td>
+        <td>${p.answered ? 'Y' : 'N'}</td>
         <td class="muted">${d.toLocaleString()}</td>
         <td><a href="/post.html?id=${p.id}"><button>열기</button></a></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="5" class="muted">결과 없음</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="muted">결과 없음</td></tr>';
+
+  renderPager();
 }
 
-function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
-
-document.getElementById('searchBtn').addEventListener('click', fetchList);
-qEl.addEventListener('keydown', e=>{ if(e.key==='Enter') fetchList(); });
-
-/* 관리자 도구 */
-const tokenEl = document.getElementById('token');
-const editIdEl = document.getElementById('editId');
-const editWrap = document.getElementById('editWrap');
-const editCategoryEl = document.getElementById('editCategory');
-const editTitleEl = document.getElementById('editTitle');
-const editContentEl = document.getElementById('editContent');
-
-document.getElementById('loadBtn').addEventListener('click', async ()=>{
-  const id = editIdEl.value.trim(); if(!id) return alert('ID 입력');
-  const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-  const data = await res.json();
-  if(!res.ok) return alert('불러오기 실패');
-  editCategoryEl.value = data.category || '';
-  editTitleEl.value = data.title || '';
-  editContentEl.value = data.content || '';
-  editWrap.style.display = 'block';
-});
-
-document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  const id = editIdEl.value.trim(); if(!id) return;
-  const token = tokenEl.value.trim(); if(!token) return alert('ADMIN_TOKEN 입력');
-  const payload = {
-    id, category: editCategoryEl.value, title: editTitleEl.value, content: editContentEl.value
+function renderPager(){
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  pagerEl.innerHTML = '';
+  const btn = (label, p, disabled=false) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if(disabled){ b.disabled=true; }
+    b.addEventListener('click', ()=>{ page=p; fetchList(); });
+    pagerEl.appendChild(b);
   };
-  const res = await fetch('/api/update', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json', 'x-admin-token': token },
-    body: JSON.stringify(payload)
-  });
-  if(!res.ok) return alert('저장 실패');
-  alert('저장했습니다'); fetchList();
-});
+  btn('«', 1, page===1);
+  btn('‹', Math.max(1,page-1), page===1);
+  pagerEl.appendChild(document.createTextNode(`  ${page}/${pages}  `));
+  btn('›', Math.min(pages,page+1), page===pages);
+  btn('»', pages, page===pages);
+}
 
-document.getElementById('delBtn').addEventListener('click', async ()=>{
-  const id = editIdEl.value.trim(); if(!id) return;
-  const token = tokenEl.value.trim(); if(!token) return alert('ADMIN_TOKEN 입력');
-  const ok = confirm('정말 삭제하시겠습니까?'); if(!ok) return;
-  const res = await fetch('/api/delete', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json', 'x-admin-token': token },
-    body: JSON.stringify({ id })
-  });
-  if(!res.ok) return alert('삭제 실패');
-  alert('삭제했습니다'); editWrap.style.display='none'; fetchList();
-});
+document.getElementById('searchBtn').addEventListener('click', ()=>{ page=1; fetchList(); });
+qEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ page=1; fetchList(); } });
+catEl.addEventListener('change', ()=>{ page=1; fetchList(); });
 
 fetchList();
 </script>
