@@ -68,12 +68,12 @@ app.post("/api/ask", async (req, res) => {
     const system = "역할: 수출 애로해소 전문가. 필수 섹션: (1)핵심 요약 (2)절차 (3)주의 (4)근거/출처 (5)체크리스트 (6)다음 행동. 톤: 간결.";
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const out = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: system },
         { role: "user", content }
       ],
-      temperature: 0.3,
+      temperature: 0.5,
       max_tokens: 900
     });
     const answer = out?.choices?.[0]?.message?.content?.trim() || "_응답 없음_";
