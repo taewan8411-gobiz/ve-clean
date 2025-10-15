@@ -1,20 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>문의 상세</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif;background:#f6f7fb;margin:0}
+    .wrap{max-width:960px;margin:40px auto;padding:0 16px}
+    header{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+    header a{color:#4b5fd4;text-decoration:none;font-weight:600}
+    h1{font-size:22px;margin:0 8px 0 0}
+    .card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(16,24,40,.08);padding:16px}
+    .muted{color:#8a8fa3}
+    #head{margin-bottom:12px;line-height:1.5}
+    #thread{display:flex;flex-direction:column;gap:12px;max-height:60vh;overflow:auto;padding:12px;background:#fafbff;border-radius:12px;border:1px solid #e5e7f0}
+    .bubble{background:#fff;border:1px solid #e5e7f0;border-radius:12px;padding:12px;line-height:1.6}
+    .bubble.user{background:#eff6ff;border-color:#d2e4ff}
+    .row{display:flex;gap:8px;margin-top:12px}
+    textarea{flex:1;min-height:96px;border:1px solid #e5e7f0;border-radius:10px;padding:10px;resize:vertical}
+    button{background:#4b5fd4;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    #loading{display:none;align-items:center;gap:8px;margin:10px 0;color:#8a8fa3}
+    .chip{display:inline-block;background:#eef2ff;color:#4751c0;border-radius:999px;padding:2px 10px;font-size:12px;margin-left:6px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>문의 상세</h1>
+    <a href="/index.html">홈</a>
+    <a href="/new.html">질문하기</a>
+    <a href="/index.html">답변보기</a>
+  </header>
+
+  <div class="card" id="detail">
+    <div id="head" class="muted">불러오는 중…</div>
+    <div id="thread"></div>
+
+    <div id="loading">⌛ 처리 중…</div>
+
+    <div class="row">
+      <textarea id="follow" placeholder="추가 질문을 입력하세요"></textarea>
+      <button id="send">질문 보내기</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  const params = new URLSearchParams(location.search);
-  const id = params.get('id');
+(function(){
+  // ========= 공통 유틸 =========
+  const qs = new URLSearchParams(location.search);
+  const postId = qs.get('id');
 
-  const headEl = document.getElementById('head');
-  const threadEl = document.getElementById('thread');
-  const loadingEl = document.getElementById('loading');
+  const $head = document.getElementById('head');
+  const $thread = document.getElementById('thread');
+  const $loading = document.getElementById('loading');
+  const $send = document.getElementById('send');
+  const $follow = document.getElementById('follow');
 
-  function esc(s){return (s??'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
-  function asText(c){
+  const esc = s => (s??'').toString().replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const asText = c => {
     if (typeof c === 'string') return c;
     if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
     if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
     return String(c ?? '');
-  }
-  function bold(s){ return s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
-  function richHTML(raw){
+  };
+  const bold = s => s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  const richHTML = raw => {
     const src = (raw||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
     const lines = src.split('\n');
     let html='', inUL=false, inOL=false;
@@ -26,120 +78,133 @@
       flush(); html += `<p>${bold(esc(t))}</p>`;
     }
     flush(); return html || '<p>(내용 없음)</p>';
-  }
-  function bubble(role, html){
-    const div = document.createElement('div');
-    div.className = 'bubble' + (role==='user' ? ' user' : '');
-    div.innerHTML = (role==='user' ? '<b>[질문]</b> ' : '<b>[AI]</b> ') + html;
-    return div;
-  }
+  };
+  const bubble = (role,html) => {
+    const d = document.createElement('div');
+    d.className = 'bubble' + (role==='user'?' user':'');
+    d.innerHTML = (role==='user' ? '<b>[질문]</b> ' : '<b>[AI]</b> ') + html;
+    return d;
+  };
 
-  // 직전까지 저장된 assistant 개수(폴링 비교용)
   let prevAssistantCount = 0;
   let postTitle = '';
 
-  async function fetchPost(){
-    const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || res.statusText);
-    return data;
+  // ========= API =========
+  async function apiGetPost(){
+    const r = await fetch('/api/get-post?id=' + encodeURIComponent(postId));
+    const j = await r.json().catch(()=> ({}));
+    if (!r.ok) throw new Error(j?.error || r.statusText);
+    return j;
+  }
+  async function apiReply(text){
+    const r = await fetch('/api/reply?id=' + encodeURIComponent(postId), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ content: text })
+    });
+    return r.json().catch(()=> ({}));
   }
 
+  // ========= 렌더 =========
+  function renderHead(data){
+    const when = new Date(Number(data.createdAt)||Date.now());
+    const time = `${when.getFullYear()}.${String(when.getMonth()+1).padStart(2,'0')}.${String(when.getDate()).padStart(2,'0')} ${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')}`;
+    $head.innerHTML = `<b>[${esc(data.category||'')}] ${esc(data.title||'')}</b>
+      <span class="chip">${time}</span><br>${esc(data.content||'')}`;
+  }
   function renderThread(messages){
-    threadEl.innerHTML = '';
+    $thread.innerHTML = '';
     if (!messages || !messages.length){
-      threadEl.innerHTML = '<div class="muted">아직 메시지가 없습니다.</div>';
+      $thread.innerHTML = '<div class="muted">아직 메시지가 없습니다.</div>';
+      prevAssistantCount = 0;
       return;
     }
     prevAssistantCount = messages.filter(m => m.role==='assistant').length;
     messages.forEach(m=>{
-      let text = asText(m.content);
-      // 첫 답변에서 제목 재반복 제거
-      if (m.role==='assistant' && postTitle && text.split('\n')[0]?.trim().replace(/\s+/g,'') === postTitle.trim().replace(/\s+/g,'')){
-        text = text.split('\n').slice(1).join('\n');
+      let t = asText(m.content);
+      // 첫 답변이 제목을 그대로 반복하는 경우 제거
+      if (m.role==='assistant' && postTitle && t.split('\n')[0]?.trim().replace(/\s+/g,'') === postTitle.trim().replace(/\s+/g,'')){
+        t = t.split('\n').slice(1).join('\n');
       }
-      threadEl.appendChild(bubble(m.role, richHTML(text)));
+      $thread.appendChild(bubble(m.role, richHTML(t)));
     });
-    threadEl.scrollTop = threadEl.scrollHeight;
+    $thread.scrollTop = $thread.scrollHeight;
   }
 
+  // ========= 동작 =========
   async function load(){
-    if(!id){ headEl.textContent='잘못된 접근입니다.(id 없음)'; return; }
-    loadingEl.style.display='flex';
+    if (!postId){
+      $head.innerHTML = '<span class="muted">잘못된 접근입니다. (?id=글번호 필요)</span>';
+      return;
+    }
+    $loading.style.display='flex';
     try {
-      const data = await fetchPost();
+      const data = await apiGetPost();
       postTitle = data.title || '';
-      headEl.innerHTML = `<b>[${esc(data.category||'')}] ${esc(data.title||'')}</b><br>${esc(data.content||'')}`;
-      renderThread(data.messages);
+      renderHead(data);
+      renderThread(data.messages || []);
     } catch (e) {
-      headEl.innerHTML = `<span class="muted">불러오기 실패: ${esc(String(e.message||e))}</span>`;
-      threadEl.innerHTML = '';
+      $head.innerHTML = `<span class="muted">불러오기 실패: ${esc(String(e.message||e))}</span>`;
+      $thread.innerHTML = '';
     } finally {
-      loadingEl.style.display='none';
+      $loading.style.display='none';
     }
   }
 
-  // ❗️reply 요청 후, 서버에 assistant가 새로 저장될 때까지 폴링 (최대 60초)
-  async function pollUntilNewAssistant(timeoutMs = 60000, intervalMs = 1500, waitingEl){
-    const end = Date.now() + timeoutMs;
-    while (Date.now() < end) {
-      try {
-        const data = await fetchPost();
-        const count = (data.messages||[]).filter(m=>m.role==='assistant').length;
-        if (count > prevAssistantCount) {
-          renderThread(data.messages);
+  async function pollUntilAssistant(timeout=60000, step=1500, waitingEl){
+    const end = Date.now() + timeout;
+    while (Date.now() < end){
+      try{
+        const data = await apiGetPost();
+        const now = (data.messages||[]).filter(m=>m.role==='assistant').length;
+        if (now > prevAssistantCount){
+          renderHead(data);
+          renderThread(data.messages||[]);
           if (waitingEl) waitingEl.remove();
           return true;
         }
-      } catch { /* 무시하고 재시도 */ }
-      await new Promise(r => setTimeout(r, intervalMs));
+      }catch{}
+      await new Promise(r => setTimeout(r, step));
     }
     return false;
   }
 
-  async function sendFollow(){
-    const ta = document.getElementById('follow');
-    const text = ta.value.trim();
-    if(!text) return;
+  async function onSend(){
+    const text = ($follow.value||'').trim();
+    if (!text) return;
 
-    document.getElementById('send').disabled = true;
+    $send.disabled = true;
 
-    // 사용자 말풍선 + 대기 말풍선
-    const userNode = bubble('user', richHTML(text));
-    const waiting = bubble('assistant', '<em>AI 답변 생성 중…</em>');
-    threadEl.appendChild(userNode);
-    threadEl.appendChild(waiting);
-    threadEl.scrollTop = threadEl.scrollHeight;
+    // 사용자 + 대기 말풍선
+    const me = bubble('user', richHTML(text));
+    const wait = bubble('assistant','<em>AI 답변 생성 중…</em>');
+    $thread.appendChild(me); $thread.appendChild(wait);
+    $thread.scrollTop = $thread.scrollHeight;
 
     try{
-      // 서버에 전송 (응답 본문은 참고용, 최종 반영은 폴링으로 보장)
-      const res = await fetch('/api/reply?id=' + encodeURIComponent(id), {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ content: text })
-      });
-      const data = await res.json().catch(()=> ({}));
+      const res = await apiReply(text);
 
-      // 1) 응답에 assistant가 있으면 즉시 반영
-      if (res.ok && data && typeof data.assistant === 'string' && data.assistant.trim()){
-        waiting.innerHTML = '<b>[AI]</b> ' + richHTML(data.assistant);
-        // prevAssistantCount 증가 추정(저장도 되었을 가능성), 혹시 몰라 다음 폴링으로 동기화
-        prevAssistantCount += 1;
+      // 1) 응답 본문에 바로 답변이 있으면 즉시 반영
+      if (res && typeof res.assistant === 'string' && res.assistant.trim()){
+        wait.innerHTML = '<b>[AI]</b> ' + richHTML(res.assistant);
+        prevAssistantCount += 1; // 추정 반영
       } else {
-        // 2) 폴링으로 반드시 화면 반영 보장
-        const ok = await pollUntilNewAssistant(60000, 1500, waiting);
+        // 2) 저장 반영될 때까지 폴링(보장)
+        const ok = await pollUntilAssistant(60000, 1500, wait);
         if (!ok) {
-          // 폴링 타임아웃 → 안내 메시지
-          waiting.innerHTML = '<em>답변 생성에 시간이 걸리고 있습니다. 잠시 후 자동 새로고침되거나, 페이지를 새로고침해 주세요.</em>';
+          wait.innerHTML = '<em>답변 생성이 지연되고 있습니다. 잠시 후 자동 갱신되거나 새로고침 해 주세요.</em>';
         }
       }
-      ta.value='';
+      $follow.value='';
     } finally {
-      document.getElementById('send').disabled = false;
-      loadingEl.style.display='none';
+      $send.disabled = false;
+      $loading.style.display='none';
     }
   }
 
-  document.getElementById('send').addEventListener('click', sendFollow);
+  // ========= bootstrap =========
+  $send.addEventListener('click', onSend);
   load();
+})();
 </script>
+</body>
+</html>
