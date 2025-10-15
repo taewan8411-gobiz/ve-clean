@@ -2,18 +2,15 @@ import { kv } from '@vercel/kv';
 import OpenAI from 'openai';
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
+const SYSTEM_INTRO = (category='기타') => [
+  `당신은 한국의 중소기업을 돕는 "${category}" 분야 전문가입니다.`,
+  `이전 대화 맥락을 바탕으로, 실무자가 바로 실행할 수 있게`,
+  `1) 단계, 2) 서류, 3) 기간/비용, 4) 체크리스트, 5) 주의사항`,
+  `형식으로 **최대한 상세히** 답변하세요.`,
+  `※ 제목/질문을 그대로 반복하지 말고 바로 설명을 시작하세요.`
+].join(' ');
 
-function systemPrompt(category = '기타') {
-  return [
-    `당신은 한국의 중소기업을 돕는 "${category}" 분야 전문가입니다.`,
-    `이전 대화 맥락을 바탕으로, 실무자가 바로 실행할 수 있도록`,
-    `1) 단계, 2) 서류, 3) 기간/비용, 4) 체크리스트, 5) 주의사항`,
-    `형식으로 **최대한 상세히** 답변하세요. 모르면 추가 정보를 요청하세요.`
-+   `※ 제목이나 질문을 그대로 반복해서 적지 말고, 바로 핵심 요약 1~2문장 후 단계별 안내를 시작하세요.`,
-  ].join(' ');
-}
-
-function toText(c) {
+function toText(c){
   if (typeof c === 'string') return c;
   if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
   if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
@@ -41,18 +38,16 @@ export default async function handler(req, res) {
       const out = await openai.chat.completions.create({
         model: MODEL,
         messages: [
-          { role: 'system', content: systemPrompt(post.category || '기타') },
+          { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
           ...history
         ],
         temperature: 0.2,
         max_tokens: 1000
       });
 
-const div = document.createElement('div');
-div.innerHTML = `[AI] ${message.content
-  .replace(/\n/g, '<br>')
-  .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}`;
-document.getElementById('reply-container').appendChild(div);
+      const text = toText(out?.choices?.[0]?.message?.content);
+      if (text.trim()) await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: text }));
+    }
 
     res.json({ ok: true });
   } catch (e) {
