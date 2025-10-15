@@ -3,42 +3,57 @@
 <title>새 문의 작성</title>
 <link rel="stylesheet" href="/style.css" />
 <body>
-  <h1>새 문의 작성</h1>
+  <header>
+    <div class="container row">
+      <h2>새 문의 작성</h2>
+      <a class="right" href="/index.html"><button>홈</button></a>
+    </div>
+  </header>
 
-  <label>분야</label>
-  <select id="category">
-    <option>수출신고</option><option>FTA</option><option>통관</option><option selected>기타</option>
-  </select>
+  <div class="container">
+    <div class="card">
+      <label>분야</label>
+      <select id="category">
+        <option>수출신고</option><option>FTA</option><option>통관</option><option selected>기타</option>
+      </select>
 
-  <label>제목</label>
-  <input id="title" placeholder="제목을 입력하세요" />
+      <label>제목</label>
+      <input id="title" placeholder="제목을 입력하세요" />
 
-  <label>내용</label>
-  <textarea id="content" rows="10" placeholder="상세 문의 내용을 적어주세요."></textarea>
+      <label>내용</label>
+      <textarea id="content" rows="10" placeholder="상세 문의 내용을 적어주세요."></textarea>
 
-  <button id="submit">등록</button>
-  <p><a href="/index.html">← 홈</a></p>
+      <div class="row" style="margin-top:12px">
+        <button id="submit" class="primary">등록</button>
+        <div id="loading" class="center" style="display:none"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
 
-  <script>
-    async function ask() {
-      const payload = {
-        category: document.getElementById('category').value,
-        title: document.getElementById('title').value.trim(),
-        content: document.getElementById('content').value.trim()
-      };
-      if (!payload.title || !payload.content) { alert('제목/내용을 입력하세요'); return; }
+<script>
+async function ask() {
+  const payload = {
+    category: document.getElementById('category').value,
+    title: document.getElementById('title').value.trim(),
+    content: document.getElementById('content').value.trim()
+  };
+  if (!payload.title || !payload.content) { alert('제목/내용을 입력하세요'); return; }
 
-      const res = await fetch('/api/ask', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.id) { alert(data?.error || '등록 실패'); return; }
-
-      location.href = '/public/post.html?id=' + data.id; // 반드시 .html 사용
-    }
-    document.getElementById('submit').addEventListener('click', ask);
-  </script>
+  document.getElementById('submit').disabled = true;
+  document.getElementById('loading').style.display = 'flex';
+  try {
+    const res = await fetch('/api/ask', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.id) { alert(data?.error || '등록 실패'); return; }
+    location.href = '/public/post.html?id=' + data.id; // 반드시 .html 사용
+  } finally {
+    document.getElementById('submit').disabled = false;
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+document.getElementById('submit').addEventListener('click', ask);
+</script>
 </body>
 </html>
