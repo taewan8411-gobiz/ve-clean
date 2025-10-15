@@ -53,7 +53,7 @@ export default async function handler(req:any, res:any) {
             { role: 'system', content: SYSTEM_INTRO(category) },
             { role: 'user', content }
           ],
-          temperature: 0.7,
+          temperature: 0.5,
           max_tokens: 800,             // 너무 크면 응답 지연 → 약간 낮춤
         }, { signal: controller.signal });
 
