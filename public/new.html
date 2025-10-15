@@ -3,83 +3,71 @@
 <title>새 문의 작성</title>
 <link rel="stylesheet" href="/style.css" />
 <body>
- <header>
+<header>
   <div class="container row">
     <h2>온라인수출 애로해소 게시판</h2>
-
     <nav class="nav right">
       <a href="/index.html" data-nav="home">홈</a>
-      <a href="/public/new.html" data-nav="new">질문하기</a>
+      <a href="/new.html" data-nav="new">질문하기</a>
       <a href="/index.html" data-nav="answers">답변보기</a>
     </nav>
   </div>
 </header>
 
-<script>
-  // 현재 페이지에 맞게 메뉴 하이라이트
-  (function () {
-    const path = location.pathname;
-    // 페이지 → nav 키 매핑
-    const map = {
-      '/': 'home',
-      '/index.html': 'home',
-      '/public/new.html': 'new',
-      '/public/post.html': 'answers'  // 개별 글 페이지는 '답변보기' 활성화
-    };
-    // /public/post.html?id=.. 처럼 쿼리가 붙어도 인식되도록 처리
-    const key = map[path] || (path.startsWith('/public/post.html') ? 'answers' : null);
-    if (key) {
-      const el = document.querySelector(`.nav a[data-nav="${key}"]`);
-      if (el) el.classList.add('active');
-    }
-  })();
-</script>
+<div class="container">
+  <div class="card">
+    <label>분야</label>
+    <select id="category">
+      <option>글로벌셀링</option>
+      <option>수출신고</option>
+      <option>물류통관</option>
+      <option>세무회계</option>
+      <option>바이어발굴</option>
+      <option>규격인증</option>
+      <option selected>기타</option>
+    </select>
 
+    <label>제목</label>
+    <input id="title" placeholder="제목을 입력하세요" />
 
-  <div class="container">
-    <div class="card">
-      <label>분야</label>
-      <select id="category">
-        <option>수출신고</option><option>FTA</option><option>통관</option><option selected>기타</option>
-      </select>
+    <label>내용</label>
+    <textarea id="content" rows="10" placeholder="상세 문의 내용을 적어주세요."></textarea>
 
-      <label>제목</label>
-      <input id="title" placeholder="제목을 입력하세요" />
-
-      <label>내용</label>
-      <textarea id="content" rows="10" placeholder="상세 문의 내용을 적어주세요."></textarea>
-
-      <div class="row" style="margin-top:12px">
-        <button id="submit" class="primary">등록</button>
-        <div id="loading" class="center" style="display:none"><div class="spinner"></div></div>
-      </div>
+    <div class="row" style="margin-top:12px">
+      <button id="submit" class="primary">등록</button>
+      <div id="loading" class="center" style="display:none"><div class="spinner"></div></div>
     </div>
   </div>
+</div>
 
 <script>
-async function ask() {
-  const payload = {
-    category: document.getElementById('category').value,
-    title: document.getElementById('title').value.trim(),
-    content: document.getElementById('content').value.trim()
-  };
-  if (!payload.title || !payload.content) { alert('제목/내용을 입력하세요'); return; }
+  // 메뉴 하이라이트
+  (function(){ const el=document.querySelector('.nav a[data-nav="new"]'); if(el) el.classList.add('active'); })();
 
-  document.getElementById('submit').disabled = true;
-  document.getElementById('loading').style.display = 'flex';
-  try {
-    const res = await fetch('/api/ask', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok || !data?.id) { alert(data?.error || '등록 실패'); return; }
-    location.href = '/public/post.html?id=' + data.id; // 반드시 .html 사용
-  } finally {
-    document.getElementById('submit').disabled = false;
-    document.getElementById('loading').style.display = 'none';
+  async function ask() {
+    const payload = {
+      category: document.getElementById('category').value,
+      title: document.getElementById('title').value.trim(),
+      content: document.getElementById('content').value.trim()
+    };
+    if (!payload.title || !payload.content) { alert('제목/내용을 입력하세요'); return; }
+
+    document.getElementById('submit').disabled = true;
+    document.getElementById('loading').style.display = 'flex';
+    try {
+      const res = await fetch('/api/ask', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.id) { alert(data?.error || '등록 실패'); return; }
+      // ✅ /public 제거
+      location.href = '/post.html?id=' + data.id;
+    } finally {
+      document.getElementById('submit').disabled = false;
+      document.getElementById('loading').style.display = 'none';
+    }
   }
-}
-document.getElementById('submit').addEventListener('click', ask);
+  document.getElementById('submit').addEventListener('click', ask);
 </script>
 </body>
 </html>
