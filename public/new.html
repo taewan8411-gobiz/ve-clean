@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><meta charset="utf-8" />
 <title>새 문의 작성</title>
-<link rel="stylesheet" href="/public/style.css" />
+<link rel="stylesheet" href="/style.css" />
 <body>
   <h1>새 문의 작성</h1>
 
@@ -19,27 +19,26 @@
   <button id="submit">등록</button>
   <p><a href="/index.html">← 홈</a></p>
 
- <script>
-  async function ask() {
-    const payload = {
-      category: document.getElementById('category').value,
-      title: document.getElementById('title').value.trim(),
-      content: document.getElementById('content').value.trim()
-    };
-    if (!payload.title || !payload.content) { alert('제목/내용을 입력하세요'); return; }
+  <script>
+    async function ask() {
+      const payload = {
+        category: document.getElementById('category').value,
+        title: document.getElementById('title').value.trim(),
+        content: document.getElementById('content').value.trim()
+      };
+      if (!payload.title || !payload.content) { alert('제목/내용을 입력하세요'); return; }
 
-    const res = await fetch('/api/ask', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok || !data?.id) { alert(data?.error || '등록 실패'); return; }
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.id) { alert(data?.error || '등록 실패'); return; }
 
-    // ✅ 반드시 .html 포함
-    location.href = '/public/post.html?id=' + data.id;
-  }
-  document.getElementById('submit').addEventListener('click', ask);
-</script>
-
+      location.href = '/public/post.html?id=' + data.id; // 반드시 .html 사용
+    }
+    document.getElementById('submit').addEventListener('click', ask);
+  </script>
 </body>
 </html>
