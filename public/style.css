@@ -24,3 +24,17 @@ button.danger{ background:var(--danger); color:#fff; border-color:var(--danger) 
 .spinner{ width:24px; height:24px; border:3px solid #ddd; border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite }
 @keyframes spin{ to{ transform:rotate(360deg) } }
 input[type="search"]{ max-width:360px }
+/* ───────── top-right nav ───────── */
+.nav{ display:flex; gap:12px; align-items:center }
+.nav a{
+  padding:8px 10px;
+  border-radius:8px;
+  color:var(--text);
+  border:1px solid transparent;
+}
+.nav a:hover{ background:#f0f4ff; border-color:#e0e7ff }
+.nav a.active{
+  background:#eef2ff; color:#3730a3;
+  border-color:#c7d2fe;
+  font-weight:600;
+}
