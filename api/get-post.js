@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     const post = await kv.hgetall(`post:${id}`);
     if (!post) return res.status(404).json({ error: 'not_found' });
 
-    // 값 정규화 (문자열 → 숫자/문자)
+    // 정규화 (모두 문자열로 오는 Upstash 특성 고려)
     const normalized = {
       id: String(post.id ?? id),
       category: post.category ?? '',
@@ -24,12 +24,23 @@ export default async function handler(req, res) {
       createdAt: Number(post.createdAt) || Date.now()
     };
 
-    // 메시지: 최신(왼쪽에 push)로 저장 → 화면은 과거→최신 순으로 보여줌
-    const raw = await kv.lrange(`post:${id}:msgs`, 0, -1); // 최신 → 과거
+    // ✅ 메시지 가져오기: 여러 키 후보를 탐색하여 최초로 발견한 걸 사용
+    // 기본: post:{id}:msgs  / 호환: post:{id}:messages
+    const keys = [`post:${id}:msgs`, `post:${id}:messages`];
+    let raw = [];
+    for (const k of keys) {
+      raw = await kv.lrange(k, 0, -1);
+      if (raw && raw.length) break;
+    }
+
+    // 최신(왼쪽)에 push 되어 있을 것이므로 화면은 과거→최신으로 보여준다
     const msgs = (raw || [])
       .map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } })
-      .reverse() // 과거 → 최신
-      .map(m => ({ role: m.role || 'assistant', content: toText(m.content) }));
+      .reverse()
+      .map(m => ({
+        role: String(m.role || 'assistant').trim().toLowerCase() === 'user' ? 'user' : 'assistant',
+        content: toText(m.content)
+      }));
 
     res.json({ ...normalized, messages: msgs });
   } catch (e) {
