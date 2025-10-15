@@ -47,7 +47,7 @@ export default async function handler(req, res) {
           { role: 'system', content: SYSTEM_INTRO(category) },
           { role: 'user', content }
         ],
-        temperature: 0.2,
+        temperature: 0.7,
         max_tokens: 1000
       });
       const text = toText(out?.choices?.[0]?.message?.content);
