@@ -1,36 +1,3 @@
-<!doctype html>
-<html lang="ko"><meta charset="utf-8" />
-<title>문의 상세</title>
-<link rel="stylesheet" href="/style.css" />
-<body>
-<header>
-  <div class="container row">
-    <h2>문의 상세</h2>
-    <nav class="nav right">
-      <a href="/index.html">홈</a>
-      <a href="/new.html">질문하기</a>
-      <a href="/index.html" class="active">답변보기</a>
-    </nav>
-  </div>
-</header>
-
-<div class="container">
-  <div class="card"><div id="head" class="muted"></div></div>
-
-  <div class="card">
-    <div id="thread" class="bubbles"></div>
-    <div id="loading" class="center" style="display:none;margin-top:10px"><div class="spinner"></div></div>
-  </div>
-
-  <div class="card">
-    <h3>이어 질문하기</h3>
-    <textarea id="follow" rows="5" placeholder="추가 질문을 입력하세요"></textarea>
-    <div class="row" style="margin-top:10px">
-      <button id="send" class="primary">질문 보내기</button>
-    </div>
-  </div>
-</div>
-
 <script>
   const params = new URLSearchParams(location.search);
   const id = params.get('id');
@@ -67,53 +34,67 @@
     return div;
   }
 
-  let lastAssistantCount = 0;
+  // 직전까지 저장된 assistant 개수(폴링 비교용)
+  let prevAssistantCount = 0;
   let postTitle = '';
+
+  async function fetchPost(){
+    const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || res.statusText);
+    return data;
+  }
+
+  function renderThread(messages){
+    threadEl.innerHTML = '';
+    if (!messages || !messages.length){
+      threadEl.innerHTML = '<div class="muted">아직 메시지가 없습니다.</div>';
+      return;
+    }
+    prevAssistantCount = messages.filter(m => m.role==='assistant').length;
+    messages.forEach(m=>{
+      let text = asText(m.content);
+      // 첫 답변에서 제목 재반복 제거
+      if (m.role==='assistant' && postTitle && text.split('\n')[0]?.trim().replace(/\s+/g,'') === postTitle.trim().replace(/\s+/g,'')){
+        text = text.split('\n').slice(1).join('\n');
+      }
+      threadEl.appendChild(bubble(m.role, richHTML(text)));
+    });
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
 
   async function load(){
     if(!id){ headEl.textContent='잘못된 접근입니다.(id 없음)'; return; }
     loadingEl.style.display='flex';
-
-    try{
-      const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-      const data = await res.json();
-
-      if(!res.ok){
-        headEl.innerHTML = `<span class="muted">불러오기 실패: ${esc(data?.error || res.status)}</span>`;
-        threadEl.innerHTML = '';
-        return;
-      }
-
-      const cat = data.category || '';
-      const title = data.title || '';
-      const content = data.content || '';
-
-      postTitle = title;
-
-      // 헤더
-      headEl.innerHTML = `<b>[${esc(cat)}] ${esc(title)}</b><br>${esc(content)}`;
-
-      // 메시지
-      const msgs = Array.isArray(data.messages) ? data.messages : [];
-      threadEl.innerHTML = '';
-      if (msgs.length === 0){
-        threadEl.innerHTML = '<div class="muted">아직 메시지가 없습니다.</div>';
-      } else {
-        lastAssistantCount = msgs.filter(m=>m.role==='assistant').length;
-        msgs.forEach(m=>{
-          let text = asText(m.content);
-          if (m.role==='assistant' && postTitle && text.split('\n')[0]?.trim().replace(/\s+/g,'') === postTitle.trim().replace(/\s+/g,'')){
-            text = text.split('\n').slice(1).join('\n');
-          }
-          threadEl.appendChild(bubble(m.role, richHTML(text)));
-        });
-      }
+    try {
+      const data = await fetchPost();
+      postTitle = data.title || '';
+      headEl.innerHTML = `<b>[${esc(data.category||'')}] ${esc(data.title||'')}</b><br>${esc(data.content||'')}`;
+      renderThread(data.messages);
     } catch (e) {
-      headEl.innerHTML = `<span class="muted">불러오기 오류: ${esc(String(e))}</span>`;
+      headEl.innerHTML = `<span class="muted">불러오기 실패: ${esc(String(e.message||e))}</span>`;
       threadEl.innerHTML = '';
     } finally {
       loadingEl.style.display='none';
     }
+  }
+
+  // ❗️reply 요청 후, 서버에 assistant가 새로 저장될 때까지 폴링 (최대 60초)
+  async function pollUntilNewAssistant(timeoutMs = 60000, intervalMs = 1500, waitingEl){
+    const end = Date.now() + timeoutMs;
+    while (Date.now() < end) {
+      try {
+        const data = await fetchPost();
+        const count = (data.messages||[]).filter(m=>m.role==='assistant').length;
+        if (count > prevAssistantCount) {
+          renderThread(data.messages);
+          if (waitingEl) waitingEl.remove();
+          return true;
+        }
+      } catch { /* 무시하고 재시도 */ }
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    return false;
   }
 
   async function sendFollow(){
@@ -122,23 +103,35 @@
     if(!text) return;
 
     document.getElementById('send').disabled = true;
+
+    // 사용자 말풍선 + 대기 말풍선
+    const userNode = bubble('user', richHTML(text));
     const waiting = bubble('assistant', '<em>AI 답변 생성 중…</em>');
-    threadEl.appendChild(bubble('user', richHTML(text)));
+    threadEl.appendChild(userNode);
     threadEl.appendChild(waiting);
     threadEl.scrollTop = threadEl.scrollHeight;
 
     try{
+      // 서버에 전송 (응답 본문은 참고용, 최종 반영은 폴링으로 보장)
       const res = await fetch('/api/reply?id=' + encodeURIComponent(id), {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ content: text })
       });
-      const data = await res.json();
+      const data = await res.json().catch(()=> ({}));
 
+      // 1) 응답에 assistant가 있으면 즉시 반영
       if (res.ok && data && typeof data.assistant === 'string' && data.assistant.trim()){
         waiting.innerHTML = '<b>[AI]</b> ' + richHTML(data.assistant);
+        // prevAssistantCount 증가 추정(저장도 되었을 가능성), 혹시 몰라 다음 폴링으로 동기화
+        prevAssistantCount += 1;
       } else {
-        await load(); // 폴백
+        // 2) 폴링으로 반드시 화면 반영 보장
+        const ok = await pollUntilNewAssistant(60000, 1500, waiting);
+        if (!ok) {
+          // 폴링 타임아웃 → 안내 메시지
+          waiting.innerHTML = '<em>답변 생성에 시간이 걸리고 있습니다. 잠시 후 자동 새로고침되거나, 페이지를 새로고침해 주세요.</em>';
+        }
       }
       ta.value='';
     } finally {
@@ -150,6 +143,3 @@
   document.getElementById('send').addEventListener('click', sendFollow);
   load();
 </script>
-
-</body>
-</html>
