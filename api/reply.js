@@ -14,31 +14,31 @@ export default async function handler(req, res) {
 
     await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'user', content }));
 
-    const list = await kv.lrange(`post:${id}:msgs`, 0, -1);
-    const history = list.map(str => {
-      try { return JSON.parse(str); } catch { return { role: 'user', content: str }; }
-    }).reverse();
+    if (process.env.OPENAI_API_KEY) {
+      const list = await kv.lrange(`post:${id}:msgs`, 0, -1);
+      const history = list.map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } }).reverse();
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: '너는 수출 애로해소 전문가야. 이전 대화 맥락을 유지해서 간결하게 답변해.' },
-        ...history
-      ]
-    });
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: '너는 수출 애로해소 전문가야. 이전 맥락을 유지해서 간결하게 답변해.' },
+          ...history
+        ],
+        temperature: 0.3
+      });
 
-    // ✅ content를 문자열로 정제
-    const message = completion.choices?.[0]?.message?.content;
-    const text = typeof message === 'string'
-      ? message
-      : Array.isArray(message)
-        ? message.map(m => m.text ?? '').join('\n')
-        : typeof message === 'object'
-          ? JSON.stringify(message)
-          : String(message ?? '');
+      const msg = completion.choices?.[0]?.message?.content;
+      const text = typeof msg === 'string'
+        ? msg
+        : Array.isArray(msg)
+          ? msg.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('')
+          : (msg?.text ?? JSON.stringify(msg ?? ''));
 
-    await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: text }));
+      if (text.trim()) {
+        await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: text }));
+      }
+    }
 
     return res.status(200).json({ ok: true });
   } catch (e) {
