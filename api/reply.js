@@ -51,7 +51,7 @@ export default async function handler(req, res) {
           { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
           ...history
         ],
-        temperature: 0.2,
+        temperature: 0.7,
         max_tokens: 1000
       });
       assistantText = toText(out?.choices?.[0]?.message?.content || '');
