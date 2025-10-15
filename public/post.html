@@ -92,39 +92,45 @@ async function load(){
   });
 }
 
-async function sendFollow(){
-  const ta = document.getElementById('follow');
-  const text = ta.value.trim();
-  if(!text) return;
+<script>
+  // …(생략: esc/asText/bold/richHTML/bubble/load 동일 유지)…
 
-  document.getElementById('send').disabled = true;
-  threadEl.appendChild(bubble('user', richHTML(text)));
-  const waiting = bubble('assistant', '<em>AI 답변 생성 중…</em>');
-  threadEl.appendChild(waiting);
+  async function sendFollow(){
+    const ta = document.getElementById('follow');
+    const text = ta.value.trim();
+    if(!text) return;
 
-  try{
-    await fetch('/api/reply?id=' + encodeURIComponent(id), {
-      method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ content: text })
-    });
-    ta.value='';
-    // 새 assistant가 올 때까지 짧게 폴링(최대 30초)
-    const until = Date.now()+30000;
-    while(Date.now()<until){
-      await new Promise(r=>setTimeout(r,1200));
-      const r = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-      const d = await r.json();
-      const cnt = (d.messages||[]).filter(m=>m.role==='assistant').length;
-      if(cnt > lastAssistantCount){ await load(); break; }
+    // 버튼 잠그고 사용자 말풍선 + 대기 말풍선
+    document.getElementById('send').disabled = true;
+    const waiting = bubble('assistant', '<em>AI 답변 생성 중…</em>');
+    threadEl.appendChild(bubble('user', richHTML(text)));
+    threadEl.appendChild(waiting);
+    threadEl.scrollTop = threadEl.scrollHeight;
+
+    try{
+      // 서버에 전송 → AI 답변 텍스트를 즉시 돌려줌
+      const res = await fetch('/api/reply?id=' + encodeURIComponent(id), {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ content: text })
+      });
+      const data = await res.json();
+
+      // 대기 말풍선을 실제 답변으로 교체 (없으면 폴백으로 전체 리로드)
+      if (res.ok && data && typeof data.assistant === 'string' && data.assistant.trim()){
+        waiting.innerHTML = '<b>[AI]</b> ' + richHTML(data.assistant);
+      } else {
+        await load();
+      }
+      ta.value='';
+    } finally {
+      document.getElementById('send').disabled = false;
+      loadingEl.style.display='none';
     }
-  } finally {
-    document.getElementById('send').disabled = false;
-    loadingEl.style.display='none';
   }
-}
 
-document.getElementById('send').addEventListener('click', sendFollow);
-load();
+  document.getElementById('send').addEventListener('click', sendFollow);
 </script>
+
 </body>
 </html>
