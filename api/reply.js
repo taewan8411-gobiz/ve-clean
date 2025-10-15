@@ -9,61 +9,80 @@ const SYSTEM_INTRO = (category='기타') => [
   `원론적인 이야기는 최소화하고 현장 용어를 사용하며, 질문을 그대로 반복하지 말고 바로 실무 설명을 시작하세요.`
 ].join(' ');
 
-function toText(c){
+function toText(c:any){
   if (typeof c === 'string') return c;
   if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
-  if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
+  if (c && typeof c === 'object') return (c as any).text ?? (c as any).content ?? JSON.stringify(c);
   return String(c ?? '');
 }
 
-export default async function handler(req, res) {
+export default async function handler(req:any, res:any) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
   try {
-    const id = req.query.id;
-    const { content = '' } = (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body) || {};
-    if (!id || !content) return res.status(400).json({ error: 'bad_request' });
+    const body = (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}));
+    const id = (req.query?.id as string) || body.id;   // <- query와 body 모두 지원
+    const content = String(body.content ?? '');
+
+    if (!id || !content) return res.status(400).json({ error: 'bad_request', message: 'id/content required' });
 
     const post = await kv.hgetall(`post:${id}`);
     if (!post) return res.status(404).json({ error: 'not_found' });
 
-    // 1) 사용자 질문을 'user' 역할로 확실히 저장
-    await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'user', content: String(content) }));
+    // 1) 사용자 질문 저장(최신이 맨 앞)
+    await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'user', content }));
 
-    // 2) 히스토리(과거→최신) 구성
-    const raw = await kv.lrange(`post:${id}:msgs`, 0, -1); // 최신→과거
+    // 2) 히스토리(과거→최신) 구성 (최근 30개만)
+    const raw = await kv.lrange(`post:${id}:msgs`, 0, 29); // 최신→과거, 30개 한정
     const history = raw
       .map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } })
       .reverse()
       .map(m => {
         const role = String(m.role || '').trim().toLowerCase();
-        return { role: (role === 'user' ? 'user' : 'assistant'), content: toText(m.content) };
+        return { role: (role === 'user' ? 'user' : 'assistant') as 'user'|'assistant', content: toText(m.content) };
       });
 
-    // 3) OpenAI 호출 (키 없으면 생략)
     let assistantText = '';
     if (process.env.OPENAI_API_KEY) {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const out = await openai.chat.completions.create({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
-          ...history
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
-      });
-      assistantText = toText(out?.choices?.[0]?.message?.content || '');
-      if (assistantText.trim()) {
+
+      // 타임아웃: 8초
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const out = await openai.chat.completions.create({
+          model: MODEL,
+          messages: [
+            { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
+            ...history
+          ],
+          temperature: 0.7,
+          max_tokens: 800, // 과도한 토큰은 지연 유발 → 적당히 제한
+        }, { signal: controller.signal });
+
+        assistantText = toText(out?.choices?.[0]?.message?.content || '');
+        if (assistantText.trim()) {
+          await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: assistantText }));
+        } else {
+          assistantText = '빈 응답이 반환되었습니다. 내용을 조금 더 구체적으로 입력해 보세요.';
+          await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: assistantText }));
+        }
+      } catch (err:any) {
+        console.error('openai error:', err?.name, err?.message || err);
+        assistantText = 'AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
         await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: assistantText }));
+      } finally {
+        clearTimeout(timeout);
       }
+    } else {
+      console.warn('OPENAI_API_KEY not set — skipping OpenAI call');
     }
 
-    // 프론트가 바로 렌더할 수 있게 텍스트 반환
     return res.json({ ok: true, assistant: assistantText });
-  } catch (e) {
+  } catch (e:any) {
     console.error('reply.js error:', e);
-    return res.status(500).json({ error: 'server_error', detail: String(e.message || e) });
+    return res.status(500).json({ error: 'server_error', detail: String(e?.message || e) });
   }
 }
