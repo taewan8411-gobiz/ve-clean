@@ -28,11 +28,16 @@ export default async function handler(req, res) {
     const post = await kv.hgetall(`post:${id}`);
     if (!post) return res.status(404).json({ error: 'not_found' });
 
+    // 사용자 메시지 저장(최신이 왼쪽)
     await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'user', content }));
 
+    // AI 답변 생성
+    let assistantText = '';
     if (process.env.OPENAI_API_KEY) {
       const list = await kv.lrange(`post:${id}:msgs`, 0, -1);
-      const history = list.map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } }).reverse();
+      const history = list
+        .map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } })
+        .reverse(); // 과거→최신 순서
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const out = await openai.chat.completions.create({
@@ -44,12 +49,14 @@ export default async function handler(req, res) {
         temperature: 0.2,
         max_tokens: 1000
       });
-
-      const text = toText(out?.choices?.[0]?.message?.content);
-      if (text.trim()) await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: text }));
+      assistantText = toText(out?.choices?.[0]?.message?.content || '');
+      if (assistantText.trim()) {
+        await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: assistantText }));
+      }
     }
 
-    res.json({ ok: true });
+    // 👉 프론트가 바로 렌더할 수 있게 답변 텍스트 반환
+    res.json({ ok: true, assistant: assistantText });
   } catch (e) {
     console.error('reply.js error:', e);
     res.status(500).json({ error: 'server_error', detail: String(e) });
