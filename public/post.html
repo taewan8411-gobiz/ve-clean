@@ -3,115 +3,95 @@
 <title>문의 상세</title>
 <link rel="stylesheet" href="/style.css" />
 <body>
- <header>
+<header>
   <div class="container row">
-    <h2>온라인수출 애로해소 게시판</h2>
-
+    <h2>문의 상세</h2>
     <nav class="nav right">
       <a href="/index.html" data-nav="home">홈</a>
-      <a href="/public/new.html" data-nav="new">질문하기</a>
+      <a href="/new.html" data-nav="new">질문하기</a>
       <a href="/index.html" data-nav="answers">답변보기</a>
     </nav>
   </div>
 </header>
 
-<script>
-  // 현재 페이지에 맞게 메뉴 하이라이트
-  (function () {
-    const path = location.pathname;
-    // 페이지 → nav 키 매핑
-    const map = {
-      '/': 'home',
-      '/index.html': 'home',
-      '/public/new.html': 'new',
-      '/public/post.html': 'answers'  // 개별 글 페이지는 '답변보기' 활성화
-    };
-    // /public/post.html?id=.. 처럼 쿼리가 붙어도 인식되도록 처리
-    const key = map[path] || (path.startsWith('/public/post.html') ? 'answers' : null);
-    if (key) {
-      const el = document.querySelector(`.nav a[data-nav="${key}"]`);
-      if (el) el.classList.add('active');
-    }
-  })();
-</script>
-
-
-  <div class="container">
-    <div class="card">
-      <div id="head" class="muted"></div>
-    </div>
-
-    <div class="card">
-      <div id="thread" class="bubbles"></div>
-      <div id="loading" class="center" style="display:none;margin-top:10px"><div class="spinner"></div></div>
-    </div>
-
-    <div class="card">
-      <h3>이어 질문하기</h3>
-      <textarea id="follow" rows="5" placeholder="추가 질문을 입력하세요"></textarea>
-      <div class="row" style="margin-top:10px">
-        <button id="send" class="primary">질문 보내기</button>
-      </div>
-    </div>
+<div class="container">
+  <div class="card">
+    <div id="head" class="muted"></div>
   </div>
 
+  <div class="card">
+    <div id="thread" class="bubbles"></div>
+    <div id="loading" class="center" style="display:none;margin-top:10px"><div class="spinner"></div></div>
+  </div>
+
+  <div class="card">
+    <h3>이어 질문하기</h3>
+    <textarea id="follow" rows="5" placeholder="추가 질문을 입력하세요"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="send" class="primary">질문 보내기</button>
+    </div>
+  </div>
+</div>
+
 <script>
-const params = new URLSearchParams(location.search);
-const id = params.get('id');
+  (function(){ const el=document.querySelector('.nav a[data-nav="answers"]'); if(el) el.classList.add('active'); })();
 
-const headEl = document.getElementById('head');
-const threadEl = document.getElementById('thread');
-const loadingEl = document.getElementById('loading');
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
 
-function asText(c) {
-  if (typeof c === 'string') return c;
-  if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
-  if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
-  return String(c ?? '');
-}
+  const headEl = document.getElementById('head');
+  const threadEl = document.getElementById('thread');
+  const loadingEl = document.getElementById('loading');
 
-function bubble(role, text){
-  const div = document.createElement('div');
-  div.className = 'bubble' + (role==='user' ? ' user' : '');
-  div.textContent = (role==='user'?'[질문] ':'[AI] ') + text;
-  return div;
-}
-
-async function load() {
-  if (!id) { headEl.textContent = '잘못된 접근입니다.(id 없음)'; threadEl.innerHTML=''; return; }
-  const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
-  const data = await res.json();
-  if (!res.ok) { headEl.textContent = '불러오기 실패: ' + (data?.error || res.status); threadEl.innerHTML=''; return; }
-
-  headEl.innerHTML = '<b>[' + (data.category||'') + '] ' + (data.title||'') + '</b><br/>' + (data.content||'');
-  const msgs = Array.isArray(data.messages) ? data.messages : [];
-  threadEl.innerHTML = '';
-  if (!msgs.length) {
-    threadEl.appendChild(bubble('assistant','(대화 없음)'));
-  } else {
-    msgs.forEach(m => threadEl.appendChild(bubble(m.role, asText(m.content))));
+  function asText(c) {
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c)) return c.map(p => (typeof p === 'string' ? p : (p?.text ?? JSON.stringify(p)))).join('');
+    if (c && typeof c === 'object') return c.text ?? c.content ?? JSON.stringify(c);
+    return String(c ?? '');
   }
-}
 
-async function sendFollow() {
-  const text = document.getElementById('follow').value.trim();
-  if (!text) return;
-  document.getElementById('send').disabled = true;
-  loadingEl.style.display = 'flex';
-  try {
-    await fetch('/api/reply?id=' + encodeURIComponent(id), {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ content: text })
-    });
-    document.getElementById('follow').value = '';
-    await load();
-  } finally {
-    loadingEl.style.display = 'none';
-    document.getElementById('send').disabled = false;
+  function bubble(role, text){
+    const div = document.createElement('div');
+    div.className = 'bubble' + (role==='user' ? ' user' : '');
+    div.textContent = (role==='user'?'[질문] ':'[AI] ') + text;
+    return div;
   }
-}
 
-document.getElementById('send').addEventListener('click', sendFollow);
-load();
+  async function load() {
+    if (!id) { headEl.textContent = '잘못된 접근입니다.(id 없음)'; threadEl.innerHTML=''; return; }
+    const res = await fetch('/api/get-post?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!res.ok) { headEl.textContent = '불러오기 실패: ' + (data?.error || res.status); threadEl.innerHTML=''; return; }
+
+    headEl.innerHTML = '<b>[' + (data.category||'') + '] ' + (data.title||'') + '</b><br/>' + (data.content||'');
+    const msgs = Array.isArray(data.messages) ? data.messages : [];
+    threadEl.innerHTML = '';
+    if (!msgs.length) {
+      threadEl.appendChild(bubble('assistant','(대화 없음)'));
+    } else {
+      msgs.forEach(m => threadEl.appendChild(bubble(m.role, asText(m.content))));
+    }
+  }
+
+  async function sendFollow() {
+    const text = document.getElementById('follow').value.trim();
+    if (!text) return;
+    document.getElementById('send').disabled = true;
+    loadingEl.style.display = 'flex';
+    try {
+      await fetch('/api/reply?id=' + encodeURIComponent(id), {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ content: text })
+      });
+      document.getElementById('follow').value = '';
+      await load();
+    } finally {
+      loadingEl.style.display = 'none';
+      document.getElementById('send').disabled = false;
+    }
+  }
+
+  document.getElementById('send').addEventListener('click', sendFollow);
+  load();
 </script>
 </body>
 </html>
