@@ -48,11 +48,11 @@ export default async function handler(req, res) {
         max_tokens: 1000
       });
 
-      const text = toText(out?.choices?.[0]?.message?.content);
-      if (text.trim()) {
-        await kv.lpush(`post:${id}:msgs`, JSON.stringify({ role: 'assistant', content: text }));
-      }
-    }
+const div = document.createElement('div');
+div.innerHTML = `[AI] ${message.content
+  .replace(/\n/g, '<br>')
+  .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}`;
+document.getElementById('reply-container').appendChild(div);
 
     res.json({ ok: true });
   } catch (e) {
