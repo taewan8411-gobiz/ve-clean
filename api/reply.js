@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const out = await openai.chat.completions.create({
-        model: MODEL,
+        model: 'gpt-5',
         messages: [
           { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
           ...history
