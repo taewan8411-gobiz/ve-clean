@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const messages = (raw || [])
       .map(s => { try { return JSON.parse(s); } catch { return { role: 'assistant', content: s }; } })
       .reverse()
-      .map(m => ({ ...m, content: toText(m.content) })); // ← 문자열화
+      .map(m => ({ ...m, content: toText(m.content) }));
 
     return res.status(200).json({ ...post, messages });
   } catch (e) {
