@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import OpenAI from 'openai';
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const SYSTEM_INTRO = (category='기타') => [
   `당신은 한국의 중소기업을 돕는 "${category}" 분야 전문가입니다.`,
   `이전 대화 맥락을 바탕으로, 실무자가 바로 실행할 수 있게`,
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const out = await openai.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4o',
         messages: [
           { role: 'system', content: SYSTEM_INTRO(post.category || '기타') },
           ...history
