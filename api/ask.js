@@ -2,7 +2,7 @@ import { kv } from '@vercel/kv';
 import OpenAI from 'openai';
 
 const CATEGORIES = ['글로벌셀링','수출신고','물류통관','세무회계','바이어발굴','규격인증','기타'];
-const MODEL = process.env.OPENAI_MODEL || 'gpt-5';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const SYSTEM_INTRO = (category='기타') => [
   `당신은 한국 중소기업의 규모와 자원 상황을 이해하는 실전 경험 20년차의 "${category}" **분야 전문가**입니다.`,
   `답변은 **결론부터 명확히 요약**하고, 실무자가 **오늘 당장 실행할 수 있는 '구체적인 실행 가이드(Step-by-step)'**를 반드시 제시하세요.`,
